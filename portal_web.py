@@ -17,8 +17,8 @@ servicios_disponibles = {
 }
 
 # --- CONFIGURACIÓN DE IMÁGENES ---
+# Solo usaremos el logo para la parte superior
 header_logo_src = "fisik.png" 
-img_fondo_src = "fisik.png" 
 
 def main(page: ft.Page):
     # Configuración de vista web móvil
@@ -27,11 +27,14 @@ def main(page: ft.Page):
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.width = 400
     page.window.height = 750
+    # Reactivamos el scroll principal de la página
+    page.scroll = "adaptive" # <--- ¡CAMBIO AQUÍ!
 
     fecha_val = ""
     hora_val = ""
     servicio_val = "" 
 
+    # Este es el logo que aparecerá SOLO en la parte superior
     header_logo = ft.Image(src=header_logo_src, width=120, height=120, fit="contain", visible=True)
     
     texto_resumen = ft.Column([
@@ -55,19 +58,19 @@ def main(page: ft.Page):
 
     btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", visible=False, on_click=volver_a_hora)
 
+    # Quitamos el bgcolor blanco, ya que el fondo de la página ahora es blanco liso
     input_nombre = ft.TextField(
         label="Tu Nombre Completo", 
         icon=ft.Icons.PERSON, 
-        visible=False,
-        bgcolor=ft.Colors.WHITE 
+        visible=False
     )
     input_telefono = ft.TextField(
         label="Tu WhatsApp (ej: 777...)", 
         icon=ft.Icons.PHONE, 
-        visible=False,
-        bgcolor=ft.Colors.WHITE 
+        visible=False
     )
     
+    # Cuadrícula de 3 columnas para los horarios
     contenedor_horarios = ft.Row(
         spacing=10, 
         run_spacing=10, 
@@ -131,16 +134,17 @@ def main(page: ft.Page):
         try:
             guardar_cita(fecha_val, hora_val, input_nombre.value, input_telefono.value, servicio_val)
             
-            contenedor_con_fondo.content.controls.clear()
-            contenedor_con_fondo.content.controls.append(
+            # ¡Éxito! Limpiamos toda la página y mostramos la confirmación directamente
+            page.controls.clear() # <--- ¡CAMBIO AQUÍ!
+            page.add(
                 ft.Column(
                     [
                         ft.Container(height=50),
                         ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN, size=100),
-                        ft.Text("¡Cita Confirmada!", size=30, weight="bold", color=ft.Colors.BLACK),
-                        ft.Text(f"Te esperamos el {fecha_val}", size=18, color=ft.Colors.BLACK),
+                        ft.Text("¡Cita Confirmada!", size=30, weight="bold"),
+                        ft.Text(f"Te esperamos el {fecha_val}", size=18),
                         ft.Text(f"a las {hora_val}", size=18, color=ft.Colors.BLUE, weight="bold"),
-                        ft.Text(f"Para tu servicio de:", size=16, color=ft.Colors.BLACK),
+                        ft.Text(f"Para tu servicio de:", size=16),
                         ft.Text(f"{servicio_val}", size=18, color=ft.Colors.PURPLE_800, weight="bold"),
                         ft.Divider(height=40, color=ft.Colors.PURPLE_200),
                         ft.Text("Ya puedes cerrar esta ventana.", italic=True, color=ft.Colors.GREY_600)
@@ -244,44 +248,32 @@ def main(page: ft.Page):
 
     date_picker = ft.DatePicker(on_change=cambiar_fecha)
 
-    # --- Contenedor Principal con Fondo (Versión Corregida) ---
-    contenedor_con_fondo = ft.Container(
-        expand=True,
-        image_src=img_fondo_src, 
-        image_opacity=0.3, 
-        image_fit="cover", # <--- ¡SOLUCIÓN APLICADA DIRECTAMENTE AQUÍ!
-        content=ft.Column(
-            [
-                ft.Container(height=20),
-                header_logo, 
-                ft.Text("Reserva tu espacio", size=24, weight="bold", color=ft.Colors.BLACK),
-                ft.Divider(height=20, color=ft.Colors.PURPLE_200),
-                
-                ft.ElevatedButton("Paso 1: Elegir Día", icon=ft.Icons.CALENDAR_TODAY, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE, on_click=lambda _: page.show_dialog(date_picker)),
-                ft.Container(height=10),
-                
-                texto_resumen,
-                btn_cambiar_hora, 
-                
-                ft.Divider(height=20, color=ft.Colors.PURPLE_200),
-                contenedor_horarios, 
-                
-                contenedor_servicios, 
-                
-                ft.Divider(height=20, visible=False),
-                input_nombre, 
-                input_telefono, 
-                
-                ft.Container(height=30),
-                btn_confirmar 
-            ],
-            scroll="adaptive", 
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=10,
-            tight=True, 
-        )
+    # --- Construcción Directa de la Pantalla ---
+    # Eliminamos el contenedor con fondo y añadimos los controles directamente a la página
+    page.add(
+        ft.Container(height=20),
+        header_logo, # Logo en la parte superior
+        ft.Text("Reserva tu espacio", size=24, weight="bold"),
+        ft.Divider(height=20, color=ft.Colors.PURPLE_200),
+        
+        ft.ElevatedButton("Paso 1: Elegir Día", icon=ft.Icons.CALENDAR_TODAY, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE, on_click=lambda _: page.show_dialog(date_picker)),
+        ft.Container(height=10),
+        
+        texto_resumen,
+        btn_cambiar_hora, 
+        
+        ft.Divider(height=20, color=ft.Colors.PURPLE_200),
+        contenedor_horarios, 
+        
+        contenedor_servicios, 
+        
+        ft.Divider(height=20, visible=False),
+        input_nombre, 
+        input_telefono, 
+        
+        ft.Container(height=30),
+        btn_confirmar 
     )
 
-    page.add(contenedor_con_fondo)
-
+# Configuración para el internet público en Render
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0")
