@@ -19,13 +19,18 @@ servicios_disponibles = {
 header_logo_src = "fisik.png" 
 
 def main(page: ft.Page):
-    page.title = "Fisik-App"
+    page.title = "Agenda tu Cita - Fisi-K Center"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.locale = "es" 
+    
+    # Aplicamos el tema verde, pero FORZAMOS el fondo blanco
     page.theme = ft.Theme(color_scheme_seed="#89F336") 
+    page.bgcolor = ft.Colors.WHITE 
+    
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.width = 400
     page.window.height = 750
+    page.scroll = "adaptive"
 
     fecha_val = ""
     hora_val = ""
@@ -51,10 +56,11 @@ def main(page: ft.Page):
         texto_resumen.controls[2].value = "" 
         page.update()
 
-    btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", visible=False, on_click=volver_a_hora)
+    # Forzamos color azul para evitar el verde del tema
+    btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", color=ft.Colors.BLUE, visible=False, on_click=volver_a_hora)
 
-    input_nombre = ft.TextField(label="Tu Nombre Completo", icon=ft.Icons.PERSON, visible=False)
-    input_telefono = ft.TextField(label="Tu WhatsApp (ej: 777...)", icon=ft.Icons.PHONE, visible=False)
+    input_nombre = ft.TextField(label="Tu Nombre Completo", icon=ft.Icons.PERSON, visible=False, bgcolor=ft.Colors.WHITE)
+    input_telefono = ft.TextField(label="Tu WhatsApp (ej: 777...)", icon=ft.Icons.PHONE, visible=False, bgcolor=ft.Colors.WHITE)
     
     contenedor_horarios = ft.Row(
         spacing=10, run_spacing=10, 
@@ -74,15 +80,16 @@ def main(page: ft.Page):
         texto_resumen.controls[2].color = ft.Colors.PURPLE_800
         page.update()
 
-    # --- NUEVO: LÓGICA DE 2 COLUMNAS PARA EL MENÚ ---
+    # --- LÓGICA DE 2 COLUMNAS CORREGIDA CON MINI-SCROLL ---
     col_categorias = ft.Column(spacing=10, width=150)
+    
+    # ¡AQUÍ ESTÁ LA MAGIA! Le damos una altura fija y scroll adaptativo a la columna derecha
     col_subservicios = ft.Column([
         ft.Text("👈 Toca una categoría", italic=True, color=ft.Colors.GREY, size=13)
-    ], width=180, spacing=8)
+    ], width=180, spacing=8, scroll=ft.ScrollMode.ADAPTIVE, height=220)
 
     def mostrar_subservicios(categoria):
         col_subservicios.controls.clear()
-        # Titulito para saber qué seleccionaste
         col_subservicios.controls.append(ft.Text(categoria, weight="bold", size=14, color=ft.Colors.PURPLE_600))
         
         for sub in servicios_disponibles[categoria]:
@@ -98,18 +105,19 @@ def main(page: ft.Page):
             )
         page.update()
 
-    # Llenamos la columna izquierda con las categorías
+    # Botones de categorías (Forzados a morado)
     for cat in servicios_disponibles.keys():
         col_categorias.controls.append(
             ft.ElevatedButton(
                 content=ft.Text(cat, size=13, text_align=ft.TextAlign.CENTER),
                 width=150,
+                bgcolor=ft.Colors.PURPLE_400,
+                color=ft.Colors.WHITE,
                 style=ft.ButtonStyle(padding=5),
                 on_click=lambda e, c=cat: mostrar_subservicios(c)
             )
         )
 
-    # Armamos el contenedor de 2 columnas con un divisor en medio
     contenedor_servicios = ft.Column([
         ft.Text("Paso 3: Selecciona tu servicio", size=18, weight="bold", color=ft.Colors.PURPLE_400),
         ft.Container(
@@ -121,10 +129,10 @@ def main(page: ft.Page):
             padding=10,
             border_radius=10,
             border=ft.border.all(1, ft.Colors.PURPLE_100),
-            width=380
+            width=380,
+            bgcolor=ft.Colors.WHITE
         )
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
-    # ------------------------------------------------
 
     def confirmar_reserva(e):
         if not input_nombre.value or not input_telefono.value or not servicio_val:
@@ -209,9 +217,11 @@ def main(page: ft.Page):
                     )
                 )
             else:
+                # Forzamos los botones de horas a azul para que no sean verdes
                 contenedor_horarios.controls.append(
                     ft.ElevatedButton(
-                        h, icon=ft.Icons.CHECK_CIRCLE_OUTLINE, icon_color=ft.Colors.GREEN_400,
+                        h, icon=ft.Icons.CHECK_CIRCLE_OUTLINE, icon_color=ft.Colors.GREEN_600,
+                        color=ft.Colors.BLUE_700, bgcolor=ft.Colors.BLUE_50,
                         width=115, on_click=lambda e, hora_btn=h: seleccionar_hora(hora_btn),
                         style=ft.ButtonStyle(padding=5)
                     )
@@ -251,9 +261,10 @@ def main(page: ft.Page):
     page.add(
         ft.Container(height=20),
         header_logo, 
-        ft.Text("Reserva tu espacio", size=24, weight="bold"),
+        ft.Text("Reserva tu espacio", size=24, weight="bold", color=ft.Colors.BLACK),
         ft.Divider(height=20, color=ft.Colors.PURPLE_200),
         
+        # Forzamos azul para contrarrestar el tema verde
         ft.ElevatedButton("Paso 1: Elegir Día", icon=ft.Icons.CALENDAR_TODAY, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE, on_click=lambda _: page.show_dialog(date_picker)),
         ft.Container(height=10),
         
@@ -269,8 +280,9 @@ def main(page: ft.Page):
         input_nombre, 
         input_telefono, 
         
-        ft.Container(height=30),
-        btn_confirmar 
+        ft.Container(height=20),
+        btn_confirmar,
+        ft.Container(height=50) # Colchón extra al final para scrollear cómodamente
     )
 
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0", assets_dir=".")
