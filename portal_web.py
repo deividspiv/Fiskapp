@@ -1,5 +1,6 @@
 import flet as ft
 from supa_config import guardar_cita 
+import os
 
 # --- TU MENÚ DE SERVICIOS (Basado en tu imagen) ---
 servicios_disponibles = {
@@ -191,4 +192,5 @@ def main(page: ft.Page):
         btn_confirmar 
     )
 
-ft.app(target=main, view=ft.AppView.WEB_BROWSER)
+# Le decimos a Flet que escuche al servidor de internet (0.0.0.0)
+ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0")
