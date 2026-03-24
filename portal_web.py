@@ -17,20 +17,16 @@ servicios_disponibles = {
 }
 
 # --- CONFIGURACIÓN DE IMÁGENES ---
-# Tu logo morado original para el encabezado
 header_logo_src = "fisik.png" 
-# Tu logo para el fondo de la página
-img_fondo_src = "fisik.png" # Usaremos el mismo archivo
+img_fondo_src = "fisik.png" 
 
 def main(page: ft.Page):
     # Configuración de vista web móvil
-    page.title = "Fisik-App"
+    page.title = "Agenda tu Cita - Fisi-K Center"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.width = 400
     page.window.height = 750
-    # Moveremos el scroll al contenedor interior para que la imagen se quede quieta
-    # page.scroll = "adaptive"  <--- Borra esta línea si la tenías    
 
     fecha_val = ""
     hora_val = ""
@@ -50,30 +46,28 @@ def main(page: ft.Page):
         input_nombre.visible = False
         input_telefono.visible = False
         btn_confirmar.visible = False
-        btn_cambiar_hora.visible = False # Se oculta a sí mismo
+        btn_cambiar_hora.visible = False 
         
         contenedor_horarios.visible = True
-        texto_resumen.controls[1].value = "" # Borra el texto de la hora elegida
-        texto_resumen.controls[2].value = "" # Borra el texto del servicio elegido
+        texto_resumen.controls[1].value = "" 
+        texto_resumen.controls[2].value = "" 
         page.update()
 
     btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", visible=False, on_click=volver_a_hora)
 
-    # NUEVO: Damos un fondo blanco a los campos de texto para que resalten sobre el fondo
     input_nombre = ft.TextField(
         label="Tu Nombre Completo", 
         icon=ft.Icons.PERSON, 
         visible=False,
-        bgcolor=ft.Colors.WHITE # <--- ¡CAMBIO AQUÍ!
+        bgcolor=ft.Colors.WHITE 
     )
     input_telefono = ft.TextField(
         label="Tu WhatsApp (ej: 777...)", 
         icon=ft.Icons.PHONE, 
         visible=False,
-        bgcolor=ft.Colors.WHITE # <--- ¡CAMBIO AQUÍ!
+        bgcolor=ft.Colors.WHITE 
     )
     
-    # Cuadrícula de 3 columnas para los horarios
     contenedor_horarios = ft.Row(
         spacing=10, 
         run_spacing=10, 
@@ -137,7 +131,6 @@ def main(page: ft.Page):
         try:
             guardar_cita(fecha_val, hora_val, input_nombre.value, input_telefono.value, servicio_val)
             
-            # ¡Éxito! Limpiamos todo el contenedor principal y mostramos la confirmación
             contenedor_con_fondo.content.controls.clear()
             contenedor_con_fondo.content.controls.append(
                 ft.Column(
@@ -178,11 +171,10 @@ def main(page: ft.Page):
         
         contenedor_horarios.visible = False
         contenedor_servicios.visible = True
-        btn_cambiar_hora.visible = True # ¡Mostramos el botón de editar!
+        btn_cambiar_hora.visible = True 
         texto_resumen.visible = True
         page.update()
 
-    # --- FILTRO INTELIGENTE DE HORARIOS EN CUADRÍCULA ---
     def mostrar_horarios(fecha):
         contenedor_horarios.controls.clear()
         
@@ -209,7 +201,7 @@ def main(page: ft.Page):
                     ft.ElevatedButton(
                         h, 
                         icon=ft.Icons.LOCK,
-                        width=115, # Ajuste para 3 columnas
+                        width=115, 
                         disabled=True,
                         color=ft.Colors.GREY_500,
                         bgcolor=ft.Colors.GREY_200,
@@ -239,7 +231,7 @@ def main(page: ft.Page):
             
             texto_resumen.controls[1].value = ""
             texto_resumen.controls[2].value = ""
-            btn_cambiar_hora.visible = False # Ocultar el botón si cambiamos de día
+            btn_cambiar_hora.visible = False 
             
             contenedor_horarios.visible = True
             contenedor_servicios.visible = False
@@ -252,19 +244,16 @@ def main(page: ft.Page):
 
     date_picker = ft.DatePicker(on_change=cambiar_fecha)
 
-    # --- NUEVO: Construcción del Contenedor Principal con Fondo ---
-    # Envolvemos todo el contenido anterior dentro de este contenedor
+    # --- Contenedor Principal con Fondo (Versión Corregida) ---
     contenedor_con_fondo = ft.Container(
         expand=True,
-        # Tu imagen fisik.png como fondo de la página web
         image_src=img_fondo_src, 
-        image_opacity=0.3, # <--- Opacidad baja (0.3) para no perder el texto
-        image_fit="cover", # Que cubra todo sin deformarse
-        # Aquí metemos el Column con el scroll y todos los controles existentes
+        image_opacity=0.3, 
+        image_fit="cover", # <--- ¡SOLUCIÓN APLICADA DIRECTAMENTE AQUÍ!
         content=ft.Column(
             [
                 ft.Container(height=20),
-                header_logo, # Tu logo morado original
+                header_logo, 
                 ft.Text("Reserva tu espacio", size=24, weight="bold", color=ft.Colors.BLACK),
                 ft.Divider(height=20, color=ft.Colors.PURPLE_200),
                 
@@ -272,7 +261,7 @@ def main(page: ft.Page):
                 ft.Container(height=10),
                 
                 texto_resumen,
-                btn_cambiar_hora, # Botón de editar hora
+                btn_cambiar_hora, 
                 
                 ft.Divider(height=20, color=ft.Colors.PURPLE_200),
                 contenedor_horarios, 
@@ -286,16 +275,13 @@ def main(page: ft.Page):
                 ft.Container(height=30),
                 btn_confirmar 
             ],
-            scroll="adaptive", # Mantenemos el scroll interior para el contenido
+            scroll="adaptive", 
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=10,
-            tight=True, # Ajuste estrecho para el diseño móvil
+            tight=True, 
         )
     )
 
-    # Construcción Final de la Pantalla
-    # NUEVO: Agregamos el contenedor principal con fondo
     page.add(contenedor_con_fondo)
 
-# Configuración para el internet público en Render
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0")
