@@ -20,7 +20,7 @@ servicios_disponibles = {
 header_logo_src = "fisik.png" 
 
 def main(page: ft.Page):
-    page.title = "Agenda tu Cita - Fisi-K Center"
+    page.title = "Fisik-App"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.width = 400
