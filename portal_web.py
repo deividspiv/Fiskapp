@@ -19,9 +19,9 @@ servicios_disponibles = {
 header_logo_src = "fisik.png" 
 
 def main(page: ft.Page):
-    page.title = "Agenda tu Cita - Fisi-K Center"
+    page.title = "Fisik-App"
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.locale = "es" # Mantenemos el calendario en español
+    page.locale = "es" 
     
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.width = 400
@@ -52,6 +52,7 @@ def main(page: ft.Page):
         texto_resumen.controls[2].value = "" 
         page.update()
 
+    # ¡Error solucionado! El botón ya no tiene la palabra 'color='
     btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", visible=False, on_click=volver_a_hora)
 
     input_nombre = ft.TextField(label="Tu Nombre Completo", icon=ft.Icons.PERSON, visible=False)
@@ -75,7 +76,6 @@ def main(page: ft.Page):
         texto_resumen.controls[2].color = ft.Colors.PURPLE_800
         page.update()
 
-    # --- LÓGICA DE 2 COLUMNAS (CON MINI-SCROLL ARREGLADO) ---
     col_categorias = ft.Column(spacing=10, width=150)
     
     col_subservicios = ft.Column([
@@ -181,4 +181,95 @@ def main(page: ft.Page):
 
     def mostrar_horarios(fecha):
         contenedor_horarios.controls.clear()
-        texto_carga = ft.
+        texto_carga = ft.Text("Verificando disponibilidad...", italic=True, color=ft.Colors.GREY)
+        contenedor_horarios.controls.append(texto_carga)
+        page.update()
+
+        todas_las_horas = [
+            "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM",
+            "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM"
+        ]
+
+        try:
+            citas_existentes = obtener_citas()
+            horas_ocupadas = [cita.get('hora') for cita in citas_existentes if cita.get('fecha') == fecha]
+        except:
+            horas_ocupadas = [] 
+
+        contenedor_horarios.controls.clear()
+
+        for h in todas_las_horas:
+            if h in horas_ocupadas:
+                contenedor_horarios.controls.append(
+                    ft.ElevatedButton(
+                        h, icon=ft.Icons.LOCK, width=115, disabled=True,
+                        color=ft.Colors.GREY_500, bgcolor=ft.Colors.GREY_200, style=ft.ButtonStyle(padding=5)
+                    )
+                )
+            else:
+                contenedor_horarios.controls.append(
+                    ft.ElevatedButton(
+                        h, icon=ft.Icons.CHECK_CIRCLE_OUTLINE, icon_color=ft.Colors.GREEN_400,
+                        width=115, on_click=lambda e, hora_btn=h: seleccionar_hora(hora_btn),
+                        style=ft.ButtonStyle(padding=5)
+                    )
+                )
+        page.update()
+
+    def cambiar_fecha(e):
+        nonlocal fecha_val
+        if e.control.value:
+            fecha_val = e.control.value.strftime("%Y-%m-%d")
+            texto_resumen.controls[0].value = f"Fecha: {fecha_val}"
+            texto_resumen.controls[0].italic = False
+            texto_resumen.visible = True
+            
+            texto_resumen.controls[1].value = ""
+            texto_resumen.controls[2].value = ""
+            btn_cambiar_hora.visible = False 
+            
+            contenedor_horarios.visible = True
+            contenedor_servicios.visible = False
+            input_nombre.visible = False
+            input_telefono.visible = False
+            btn_confirmar.visible = False
+            
+            mostrar_horarios(fecha_val)
+            page.update()
+
+    hoy = datetime.datetime.now()
+    date_picker = ft.DatePicker(
+        first_date=hoy, 
+        on_change=cambiar_fecha,
+        help_text="Selecciona tu día de cita",
+        cancel_text="Cancelar",
+        confirm_text="Aceptar"
+    )
+
+    page.add(
+        ft.Container(height=20),
+        header_logo, 
+        ft.Text("Reserva tu espacio", size=24, weight="bold"),
+        ft.Divider(height=20, color=ft.Colors.PURPLE_200),
+        
+        ft.ElevatedButton("Paso 1: Elegir Día", icon=ft.Icons.CALENDAR_TODAY, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE, on_click=lambda _: page.show_dialog(date_picker)),
+        ft.Container(height=10),
+        
+        texto_resumen,
+        btn_cambiar_hora, 
+        
+        ft.Divider(height=20, color=ft.Colors.PURPLE_200),
+        contenedor_horarios, 
+        
+        contenedor_servicios, 
+        
+        ft.Divider(height=20, visible=False),
+        input_nombre, 
+        input_telefono, 
+        
+        ft.Container(height=20),
+        btn_confirmar,
+        ft.Container(height=50) 
+    )
+
+ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0", assets_dir=".")
