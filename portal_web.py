@@ -24,13 +24,13 @@ img_fondo_src = "fisik.png" # Usaremos el mismo archivo
 
 def main(page: ft.Page):
     # Configuración de vista web móvil
-    page.title = "Agenda tu Cita - Fisi-K Center"
+    page.title = "Fisik-App"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.width = 400
     page.window.height = 750
     # Moveremos el scroll al contenedor interior para que la imagen se quede quieta
-    # page.scroll = "adaptive"  <--- Borra esta línea si la tenías
+    # page.scroll = "adaptive"  <--- Borra esta línea si la tenías    
 
     fecha_val = ""
     hora_val = ""
@@ -259,7 +259,7 @@ def main(page: ft.Page):
         # Tu imagen fisik.png como fondo de la página web
         image_src=img_fondo_src, 
         image_opacity=0.3, # <--- Opacidad baja (0.3) para no perder el texto
-        image_fit=ft.ImageFit.COVER, # Que cubra todo sin deformarse
+        image_fit="cover", # Que cubra todo sin deformarse
         # Aquí metemos el Column con el scroll y todos los controles existentes
         content=ft.Column(
             [
