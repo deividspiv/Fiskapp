@@ -1,7 +1,6 @@
 import flet as ft
 import os
 import datetime 
-# Importamos obtener_citas para la validación inteligente
 from supa_config import guardar_cita, obtener_citas 
 
 # --- TU MENÚ DE SERVICIOS ---
@@ -10,29 +9,20 @@ servicios_disponibles = {
         "Relajantes", "Descontracturantes", "Deportivo", "Holístico", "Aromaterapia"
     ],
     "🧖‍♀️ Limpiezas faciales": [
-        "Limpieza facial profunda", "Hidratante", "Anti-acné", "Anti-edad"
+        "Limpieza profunda", "Hidratante", "Anti-acné", "Anti-edad"
     ],
-    "✨ Tratamientos Corporales y faciales": [
-        "Cavitación", "Radiofrecuencia", "PRP (plasma rico)", "Lipoenzimas"
+    "✨ Trat. Corporales": [
+        "Cavitación", "Radiofrecuencia", "PRP (plasma)", "Lipoenzimas"
     ]
 }
 
-# --- CONFIGURACIÓN DE IMÁGENES ---
-# Tu logo morado original para el encabezado
 header_logo_src = "fisik.png" 
-# Tu logo para el fondo de la página
-img_fondo_src = "fisik.png" 
 
 def main(page: ft.Page):
-    # Configuración de vista web móvil
     page.title = "Fisik-App"
     page.theme_mode = ft.ThemeMode.LIGHT
-    
-    # --- ¡NUEVO! IDIOMA Y COLOR VERDE LIME (#89F336) ---
-    page.locale = "es" # Forzamos el idioma a español
-    # Esto pintará tu calendario con el color de tu marca
+    page.locale = "es" 
     page.theme = ft.Theme(color_scheme_seed="#89F336") 
-    
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.width = 400
     page.window.height = 750
@@ -50,7 +40,6 @@ def main(page: ft.Page):
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
     def volver_a_hora(e):
-        """Oculta los servicios y vuelve a mostrar la cuadrícula de horarios."""
         contenedor_servicios.visible = False
         input_nombre.visible = False
         input_telefono.visible = False
@@ -64,26 +53,13 @@ def main(page: ft.Page):
 
     btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", visible=False, on_click=volver_a_hora)
 
-    input_nombre = ft.TextField(
-        label="Tu Nombre Completo", 
-        icon=ft.Icons.PERSON, 
-        visible=False,
-        bgcolor=ft.Colors.WHITE 
-    )
-    input_telefono = ft.TextField(
-        label="Tu WhatsApp (ej: 777...)", 
-        icon=ft.Icons.PHONE, 
-        visible=False,
-        bgcolor=ft.Colors.WHITE 
-    )
+    input_nombre = ft.TextField(label="Tu Nombre Completo", icon=ft.Icons.PERSON, visible=False)
+    input_telefono = ft.TextField(label="Tu WhatsApp (ej: 777...)", icon=ft.Icons.PHONE, visible=False)
     
     contenedor_horarios = ft.Row(
-        spacing=10, 
-        run_spacing=10, 
+        spacing=10, run_spacing=10, 
         alignment=ft.MainAxisAlignment.CENTER, 
-        wrap=True, 
-        visible=False, 
-        width=380
+        wrap=True, visible=False, width=380
     )
 
     def seleccionar_servicio(servicio_completo):
@@ -95,43 +71,64 @@ def main(page: ft.Page):
         input_nombre.visible = True
         input_telefono.visible = True
         btn_confirmar.visible = True
-        
         texto_resumen.controls[2].color = ft.Colors.PURPLE_800
         page.update()
 
-    panels_servicios = []
-    for categoria, tipos in servicios_disponibles.items():
-        column_tipos = ft.Column(spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-        for tipo in tipos:
-            column_tipos.controls.append(
+    # --- NUEVO: LÓGICA DE 2 COLUMNAS PARA EL MENÚ ---
+    col_categorias = ft.Column(spacing=10, width=150)
+    col_subservicios = ft.Column([
+        ft.Text("👈 Toca una categoría", italic=True, color=ft.Colors.GREY, size=13)
+    ], width=180, spacing=8)
+
+    def mostrar_subservicios(categoria):
+        col_subservicios.controls.clear()
+        # Titulito para saber qué seleccionaste
+        col_subservicios.controls.append(ft.Text(categoria, weight="bold", size=14, color=ft.Colors.PURPLE_600))
+        
+        for sub in servicios_disponibles[categoria]:
+            col_subservicios.controls.append(
                 ft.ElevatedButton(
-                    tipo,
-                    width=250,
-                    on_click=lambda e, s=f"{categoria.split(' ')[1]} - {tipo}": seleccionar_servicio(s)
+                    content=ft.Text(sub, size=12),
+                    width=180,
+                    bgcolor=ft.Colors.PURPLE_50,
+                    color=ft.Colors.PURPLE_900,
+                    style=ft.ButtonStyle(padding=5),
+                    on_click=lambda e, s=f"{categoria.split(' ')[1]} - {sub}": seleccionar_servicio(s)
                 )
             )
-            
-        panels_servicios.append(
-            ft.ExpansionPanel(
-                header=ft.ListTile(
-                    title=ft.Text(categoria, weight="bold", size=18)
-                ),
-                content=column_tipos
+        page.update()
+
+    # Llenamos la columna izquierda con las categorías
+    for cat in servicios_disponibles.keys():
+        col_categorias.controls.append(
+            ft.ElevatedButton(
+                content=ft.Text(cat, size=13, text_align=ft.TextAlign.CENTER),
+                width=150,
+                style=ft.ButtonStyle(padding=5),
+                on_click=lambda e, c=cat: mostrar_subservicios(c)
             )
         )
 
-    # ¡Corregido! Usamos controls= en lugar de panels= para ExpansionPanelList
-    expansion_list = ft.ExpansionPanelList(controls=panels_servicios, expand_icon_color=ft.Colors.PURPLE)
-    
+    # Armamos el contenedor de 2 columnas con un divisor en medio
     contenedor_servicios = ft.Column([
         ft.Text("Paso 3: Selecciona tu servicio", size=18, weight="bold", color=ft.Colors.PURPLE_400),
-        expansion_list
+        ft.Container(
+            content=ft.Row([
+                col_categorias,
+                ft.VerticalDivider(width=1, color=ft.Colors.GREY_300),
+                col_subservicios
+            ], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.START),
+            padding=10,
+            border_radius=10,
+            border=ft.border.all(1, ft.Colors.PURPLE_100),
+            width=380
+        )
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
-
+    # ------------------------------------------------
 
     def confirmar_reserva(e):
         if not input_nombre.value or not input_telefono.value or not servicio_val:
-            page.show_dialog(ft.SnackBar(ft.Text("Por favor, llena todos los campos y selecciona un servicio."), open=True))
+            page.show_dialog(ft.SnackBar(ft.Text("Por favor, llena todos los campos."), open=True))
             return
 
         btn_confirmar.disabled = True
@@ -140,17 +137,16 @@ def main(page: ft.Page):
 
         try:
             guardar_cita(fecha_val, hora_val, input_nombre.value, input_telefono.value, servicio_val)
-            
-            contenedor_con_fondo.content.controls.clear()
-            contenedor_con_fondo.content.controls.append(
+            page.controls.clear() 
+            page.add(
                 ft.Column(
                     [
                         ft.Container(height=50),
                         ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN, size=100),
-                        ft.Text("¡Cita Confirmada!", size=30, weight="bold", color=ft.Colors.BLACK),
-                        ft.Text(f"Te esperamos el {fecha_val}", size=18, color=ft.Colors.BLACK),
+                        ft.Text("¡Cita Confirmada!", size=30, weight="bold"),
+                        ft.Text(f"Te esperamos el {fecha_val}", size=18),
                         ft.Text(f"a las {hora_val}", size=18, color=ft.Colors.BLUE, weight="bold"),
-                        ft.Text(f"Para tu servicio de:", size=16, color=ft.Colors.BLACK),
+                        ft.Text(f"Para tu servicio de:", size=16),
                         ft.Text(f"{servicio_val}", size=18, color=ft.Colors.PURPLE_800, weight="bold"),
                         ft.Divider(height=40, color=ft.Colors.PURPLE_200),
                         ft.Text("Ya puedes cerrar esta ventana.", italic=True, color=ft.Colors.GREY_600)
@@ -181,13 +177,12 @@ def main(page: ft.Page):
         
         contenedor_horarios.visible = False
         contenedor_servicios.visible = True
-        btn_cambiar_hora.visible = True # ¡Mostramos el botón de editar!
+        btn_cambiar_hora.visible = True 
         texto_resumen.visible = True
         page.update()
 
     def mostrar_horarios(fecha):
         contenedor_horarios.controls.clear()
-        
         texto_carga = ft.Text("Verificando disponibilidad...", italic=True, color=ft.Colors.GREY)
         contenedor_horarios.controls.append(texto_carga)
         page.update()
@@ -209,23 +204,15 @@ def main(page: ft.Page):
             if h in horas_ocupadas:
                 contenedor_horarios.controls.append(
                     ft.ElevatedButton(
-                        h, 
-                        icon=ft.Icons.LOCK,
-                        width=115, # Ajuste para 3 columnas
-                        disabled=True,
-                        color=ft.Colors.GREY_500,
-                        bgcolor=ft.Colors.GREY_200,
-                        style=ft.ButtonStyle(padding=5)
+                        h, icon=ft.Icons.LOCK, width=115, disabled=True,
+                        color=ft.Colors.GREY_500, bgcolor=ft.Colors.GREY_200, style=ft.ButtonStyle(padding=5)
                     )
                 )
             else:
                 contenedor_horarios.controls.append(
                     ft.ElevatedButton(
-                        h,
-                        icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
-                        icon_color=ft.Colors.GREEN_400,
-                        width=115,
-                        on_click=lambda e, hora_btn=h: seleccionar_hora(hora_btn),
+                        h, icon=ft.Icons.CHECK_CIRCLE_OUTLINE, icon_color=ft.Colors.GREEN_400,
+                        width=115, on_click=lambda e, hora_btn=h: seleccionar_hora(hora_btn),
                         style=ft.ButtonStyle(padding=5)
                     )
                 )
@@ -241,7 +228,7 @@ def main(page: ft.Page):
             
             texto_resumen.controls[1].value = ""
             texto_resumen.controls[2].value = ""
-            btn_cambiar_hora.visible = False # Ocultar el botón si cambiamos de día
+            btn_cambiar_hora.visible = False 
             
             contenedor_horarios.visible = True
             contenedor_servicios.visible = False
@@ -253,55 +240,37 @@ def main(page: ft.Page):
             page.update()
 
     hoy = datetime.datetime.now()
-    
-    # --- ¡NUEVO! CALENDARIO EN ESPAÑOL Y SIN DÍAS PASADOS ---
-    # Obtenemos la fecha y hora de este mismo instante
     date_picker = ft.DatePicker(
         first_date=hoy, 
         on_change=cambiar_fecha,
-        help_text="Selecciona tu día de cita", # Título superior
-        cancel_text="Cancelar",              # Botón de cancelar
-        confirm_text="Aceptar"               # Botón de aceptar
+        help_text="Selecciona tu día de cita",
+        cancel_text="Cancelar",
+        confirm_text="Aceptar"
     )
 
-    # --- Construcción del Contenedor Principal con Fondo y Opacidad Baja ---
-    contenedor_con_fondo = ft.Container(
-        expand=True,
-        image_src=img_fondo_src, 
-        image_opacity=0.3, # <--- Opacidad baja (0.3) para no perder el texto
-        image_fit="cover", 
-        content=ft.Column(
-            [
-                ft.Container(height=20),
-                header_logo, # Tu logo morado original
-                ft.Text("Reserva tu espacio", size=24, weight="bold", color=ft.Colors.BLACK),
-                ft.Divider(height=20, color=ft.Colors.PURPLE_200),
-                
-                ft.ElevatedButton("Paso 1: Elegir Día", icon=ft.Icons.CALENDAR_TODAY, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE, on_click=lambda _: page.show_dialog(date_picker)),
-                ft.Container(height=10),
-                
-                texto_resumen,
-                btn_cambiar_hora, # Botón de editar hora
-                
-                ft.Divider(height=20, color=ft.Colors.PURPLE_200),
-                contenedor_horarios, 
-                
-                contenedor_servicios, 
-                
-                ft.Divider(height=20, visible=False),
-                input_nombre, 
-                input_telefono, 
-                
-                ft.Container(height=30),
-                btn_confirmar 
-            ],
-            scroll="adaptive", 
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=10,
-            tight=True, 
-        )
+    page.add(
+        ft.Container(height=20),
+        header_logo, 
+        ft.Text("Reserva tu espacio", size=24, weight="bold"),
+        ft.Divider(height=20, color=ft.Colors.PURPLE_200),
+        
+        ft.ElevatedButton("Paso 1: Elegir Día", icon=ft.Icons.CALENDAR_TODAY, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE, on_click=lambda _: page.show_dialog(date_picker)),
+        ft.Container(height=10),
+        
+        texto_resumen,
+        btn_cambiar_hora, 
+        
+        ft.Divider(height=20, color=ft.Colors.PURPLE_200),
+        contenedor_horarios, 
+        
+        contenedor_servicios, 
+        
+        ft.Divider(height=20, visible=False),
+        input_nombre, 
+        input_telefono, 
+        
+        ft.Container(height=30),
+        btn_confirmar 
     )
-
-    page.add(contenedor_con_fondo)
 
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0", assets_dir=".")
