@@ -1,6 +1,5 @@
 import flet as ft
 import os
-# ¡NUEVO! Importamos obtener_citas para leer qué horas están tomadas
 from supa_config import guardar_cita, obtener_citas 
 
 # --- TU MENÚ DE SERVICIOS ---
@@ -36,10 +35,35 @@ def main(page: ft.Page):
         ft.Text("", weight="bold", color=ft.Colors.PURPLE), 
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
+    # --- NUEVO: Función para editar la hora ---
+    def volver_a_hora(e):
+        """Oculta los servicios y vuelve a mostrar la cuadrícula de horarios."""
+        contenedor_servicios.visible = False
+        input_nombre.visible = False
+        input_telefono.visible = False
+        btn_confirmar.visible = False
+        btn_cambiar_hora.visible = False # Se oculta a sí mismo
+        
+        contenedor_horarios.visible = True
+        texto_resumen.controls[1].value = "" # Borra el texto de la hora elegida
+        texto_resumen.controls[2].value = "" # Borra el texto del servicio elegido
+        page.update()
+
+    # NUEVO: Botón de editar
+    btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", visible=False, on_click=volver_a_hora)
+
     input_nombre = ft.TextField(label="Tu Nombre Completo", icon=ft.Icons.PERSON, visible=False)
     input_telefono = ft.TextField(label="Tu WhatsApp (ej: 777...)", icon=ft.Icons.PHONE, visible=False)
     
-    contenedor_horarios = ft.Column(spacing=10, horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
+    # --- CAMBIO: Ahora es un Row con wrap=True para hacer la cuadrícula de 3 columnas ---
+    contenedor_horarios = ft.Row(
+        spacing=10, 
+        run_spacing=10, 
+        alignment=ft.MainAxisAlignment.CENTER, 
+        wrap=True, # ¡Esta es la palabra mágica para que salte a la siguiente línea!
+        visible=False, 
+        width=380
+    )
 
     def seleccionar_servicio(servicio_completo):
         nonlocal servicio_val
@@ -130,56 +154,54 @@ def main(page: ft.Page):
         
         contenedor_horarios.visible = False
         contenedor_servicios.visible = True
+        btn_cambiar_hora.visible = True # ¡Mostramos el botón de editar!
         texto_resumen.visible = True
         page.update()
 
-    # --- LA MAGIA: FILTRO INTELIGENTE DE HORARIOS ---
     def mostrar_horarios(fecha):
         contenedor_horarios.controls.clear()
         
-        # 1. Mensaje temporal mientras leemos la nube
         texto_carga = ft.Text("Verificando disponibilidad...", italic=True, color=ft.Colors.GREY)
         contenedor_horarios.controls.append(texto_carga)
         page.update()
 
-        # 2. Todas tus horas de trabajo (puedes agregar "10:30 AM" si quieres)
         todas_las_horas = [
             "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM",
             "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM"
         ]
 
-        # 3. Preguntamos a la base de datos qué citas existen para ese día exacto
         try:
             citas_existentes = obtener_citas()
-            # Filtramos solo las horas de la fecha seleccionada
             horas_ocupadas = [cita.get('hora') for cita in citas_existentes if cita.get('fecha') == fecha]
         except:
-            horas_ocupadas = [] # Si hay un error, asumimos que no hay citas
+            horas_ocupadas = [] 
 
         contenedor_horarios.controls.clear()
 
-        # 4. Dibujamos los botones dependiendo de si están ocupados o libres
         for h in todas_las_horas:
             if h in horas_ocupadas:
-                # Botón desactivado y gris
+                # Botón desactivado con candadito
                 contenedor_horarios.controls.append(
                     ft.ElevatedButton(
-                        f"{h} - Ocupado",
-                        icon=ft.Icons.BLOCK,
-                        width=250,
+                        h, 
+                        icon=ft.Icons.LOCK,
+                        width=115, # ¡Con 115px caben exactamente 3 columnas en un celular!
                         disabled=True,
                         color=ft.Colors.GREY_500,
-                        bgcolor=ft.Colors.GREY_200
+                        bgcolor=ft.Colors.GREY_200,
+                        style=ft.ButtonStyle(padding=5)
                     )
                 )
             else:
-                # Botón azul normal
+                # Botón disponible con palomita
                 contenedor_horarios.controls.append(
                     ft.ElevatedButton(
-                        f"Elegir las {h}",
-                        icon=ft.Icons.ACCESS_TIME,
-                        width=250,
-                        on_click=lambda e, hora_btn=h: seleccionar_hora(hora_btn)
+                        h,
+                        icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+                        icon_color=ft.Colors.GREEN_400,
+                        width=115,
+                        on_click=lambda e, hora_btn=h: seleccionar_hora(hora_btn),
+                        style=ft.ButtonStyle(padding=5)
                     )
                 )
         page.update()
@@ -194,6 +216,8 @@ def main(page: ft.Page):
             
             texto_resumen.controls[1].value = ""
             texto_resumen.controls[2].value = ""
+            btn_cambiar_hora.visible = False # Ocultar el botón si cambiamos de día
+            
             contenedor_horarios.visible = True
             contenedor_servicios.visible = False
             input_nombre.visible = False
@@ -201,6 +225,7 @@ def main(page: ft.Page):
             btn_confirmar.visible = False
             
             mostrar_horarios(fecha_val)
+            page.update()
 
     date_picker = ft.DatePicker(on_change=cambiar_fecha)
 
@@ -212,7 +237,9 @@ def main(page: ft.Page):
         
         ft.ElevatedButton("Paso 1: Elegir Día", icon=ft.Icons.CALENDAR_TODAY, color=ft.Colors.WHITE, bgcolor=ft.Colors.BLUE, on_click=lambda _: page.show_dialog(date_picker)),
         ft.Container(height=10),
+        
         texto_resumen,
+        btn_cambiar_hora, # ¡Aquí vive ahora nuestro botón de editar!
         
         ft.Divider(height=20, color=ft.Colors.PURPLE_200),
         contenedor_horarios, 
@@ -227,5 +254,4 @@ def main(page: ft.Page):
         btn_confirmar 
     )
 
-# Mantenemos la configuración para que funcione en el internet público
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0")
