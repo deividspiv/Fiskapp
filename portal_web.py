@@ -1,6 +1,6 @@
 import flet as ft
 import os
-# Importamos obtener_citas para la validación inteligente
+import datetime # <--- ¡NUEVO! Herramienta para saber la fecha actual
 from supa_config import guardar_cita, obtener_citas 
 
 # --- TU MENÚ DE SERVICIOS ---
@@ -17,24 +17,20 @@ servicios_disponibles = {
 }
 
 # --- CONFIGURACIÓN DE IMÁGENES ---
-# Solo usaremos el logo para la parte superior
 header_logo_src = "fisik.png" 
 
 def main(page: ft.Page):
-    # Configuración de vista web móvil
     page.title = "Agenda tu Cita - Fisi-K Center"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.window.width = 400
     page.window.height = 750
-    # Reactivamos el scroll principal de la página
-    page.scroll = "adaptive" # <--- ¡CAMBIO AQUÍ!
+    page.scroll = "adaptive" 
 
     fecha_val = ""
     hora_val = ""
     servicio_val = "" 
 
-    # Este es el logo que aparecerá SOLO en la parte superior
     header_logo = ft.Image(src=header_logo_src, width=120, height=120, fit="contain", visible=True)
     
     texto_resumen = ft.Column([
@@ -44,7 +40,6 @@ def main(page: ft.Page):
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
     def volver_a_hora(e):
-        """Oculta los servicios y vuelve a mostrar la cuadrícula de horarios."""
         contenedor_servicios.visible = False
         input_nombre.visible = False
         input_telefono.visible = False
@@ -58,7 +53,6 @@ def main(page: ft.Page):
 
     btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", visible=False, on_click=volver_a_hora)
 
-    # Quitamos el bgcolor blanco, ya que el fondo de la página ahora es blanco liso
     input_nombre = ft.TextField(
         label="Tu Nombre Completo", 
         icon=ft.Icons.PERSON, 
@@ -70,7 +64,6 @@ def main(page: ft.Page):
         visible=False
     )
     
-    # Cuadrícula de 3 columnas para los horarios
     contenedor_horarios = ft.Row(
         spacing=10, 
         run_spacing=10, 
@@ -121,7 +114,6 @@ def main(page: ft.Page):
         expansion_list
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
-
     def confirmar_reserva(e):
         if not input_nombre.value or not input_telefono.value or not servicio_val:
             page.show_dialog(ft.SnackBar(ft.Text("Por favor, llena todos los campos y selecciona un servicio."), open=True))
@@ -134,8 +126,7 @@ def main(page: ft.Page):
         try:
             guardar_cita(fecha_val, hora_val, input_nombre.value, input_telefono.value, servicio_val)
             
-            # ¡Éxito! Limpiamos toda la página y mostramos la confirmación directamente
-            page.controls.clear() # <--- ¡CAMBIO AQUÍ!
+            page.controls.clear() 
             page.add(
                 ft.Column(
                     [
@@ -246,13 +237,19 @@ def main(page: ft.Page):
             mostrar_horarios(fecha_val)
             page.update()
 
-    date_picker = ft.DatePicker(on_change=cambiar_fecha)
+    # --- LA MAGIA ESTÁ AQUÍ ---
+    # Obtenemos la fecha y hora de este mismo instante
+    hoy = datetime.datetime.now()
+    
+    # Le decimos al calendario que su primer día permitido es "hoy"
+    date_picker = ft.DatePicker(
+        first_date=hoy, 
+        on_change=cambiar_fecha
+    )
 
-    # --- Construcción Directa de la Pantalla ---
-    # Eliminamos el contenedor con fondo y añadimos los controles directamente a la página
     page.add(
         ft.Container(height=20),
-        header_logo, # Logo en la parte superior
+        header_logo, 
         ft.Text("Reserva tu espacio", size=24, weight="bold"),
         ft.Divider(height=20, color=ft.Colors.PURPLE_200),
         
@@ -275,5 +272,4 @@ def main(page: ft.Page):
         btn_confirmar 
     )
 
-# Configuración para el internet público en Render
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0", assets_dir=".")
