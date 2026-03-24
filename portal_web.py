@@ -1,8 +1,9 @@
 import flet as ft
-from supa_config import guardar_cita 
 import os
+# ¡NUEVO! Importamos obtener_citas para leer qué horas están tomadas
+from supa_config import guardar_cita, obtener_citas 
 
-# --- TU MENÚ DE SERVICIOS (Basado en tu imagen) ---
+# --- TU MENÚ DE SERVICIOS ---
 servicios_disponibles = {
     "💆‍♀️ Masajes": [
         "Relajantes", "Descontracturantes", "Deportivo", "Holístico", "Aromaterapia"
@@ -74,7 +75,6 @@ def main(page: ft.Page):
             )
         )
 
-    # ¡AQUÍ ESTÁ LA LÍNEA CORREGIDA! Cambiamos panels= por controls=
     expansion_list = ft.ExpansionPanelList(controls=panels_servicios, expand_icon_color=ft.Colors.PURPLE)
     
     contenedor_servicios = ft.Column([
@@ -133,19 +133,55 @@ def main(page: ft.Page):
         texto_resumen.visible = True
         page.update()
 
+    # --- LA MAGIA: FILTRO INTELIGENTE DE HORARIOS ---
     def mostrar_horarios(fecha):
-        horarios = ["10:00 AM", "11:30 AM", "01:00 PM", "04:00 PM"]
         contenedor_horarios.controls.clear()
         
-        for h in horarios:
-            contenedor_horarios.controls.append(
-                ft.ElevatedButton(
-                    f"Elegir las {h}",
-                    icon=ft.Icons.ACCESS_TIME,
-                    width=250,
-                    on_click=lambda e, hora_btn=h: seleccionar_hora(hora_btn)
+        # 1. Mensaje temporal mientras leemos la nube
+        texto_carga = ft.Text("Verificando disponibilidad...", italic=True, color=ft.Colors.GREY)
+        contenedor_horarios.controls.append(texto_carga)
+        page.update()
+
+        # 2. Todas tus horas de trabajo (puedes agregar "10:30 AM" si quieres)
+        todas_las_horas = [
+            "10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM",
+            "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM"
+        ]
+
+        # 3. Preguntamos a la base de datos qué citas existen para ese día exacto
+        try:
+            citas_existentes = obtener_citas()
+            # Filtramos solo las horas de la fecha seleccionada
+            horas_ocupadas = [cita.get('hora') for cita in citas_existentes if cita.get('fecha') == fecha]
+        except:
+            horas_ocupadas = [] # Si hay un error, asumimos que no hay citas
+
+        contenedor_horarios.controls.clear()
+
+        # 4. Dibujamos los botones dependiendo de si están ocupados o libres
+        for h in todas_las_horas:
+            if h in horas_ocupadas:
+                # Botón desactivado y gris
+                contenedor_horarios.controls.append(
+                    ft.ElevatedButton(
+                        f"{h} - Ocupado",
+                        icon=ft.Icons.BLOCK,
+                        width=250,
+                        disabled=True,
+                        color=ft.Colors.GREY_500,
+                        bgcolor=ft.Colors.GREY_200
+                    )
                 )
-            )
+            else:
+                # Botón azul normal
+                contenedor_horarios.controls.append(
+                    ft.ElevatedButton(
+                        f"Elegir las {h}",
+                        icon=ft.Icons.ACCESS_TIME,
+                        width=250,
+                        on_click=lambda e, hora_btn=h: seleccionar_hora(hora_btn)
+                    )
+                )
         page.update()
 
     def cambiar_fecha(e):
@@ -165,7 +201,6 @@ def main(page: ft.Page):
             btn_confirmar.visible = False
             
             mostrar_horarios(fecha_val)
-            page.update()
 
     date_picker = ft.DatePicker(on_change=cambiar_fecha)
 
@@ -192,5 +227,5 @@ def main(page: ft.Page):
         btn_confirmar 
     )
 
-# Le decimos a Flet que escuche al servidor de internet (0.0.0.0)
+# Mantenemos la configuración para que funcione en el internet público
 ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0")
