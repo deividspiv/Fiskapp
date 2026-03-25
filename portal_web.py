@@ -19,7 +19,7 @@ servicios_disponibles = {
 header_logo_src = "fisik.png" 
 
 def main(page: ft.Page):
-    page.title = "Fisik-App"
+    page.title = "Agenda tu Cita - Fisi-K Center"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.locale = "es" 
     
@@ -52,7 +52,6 @@ def main(page: ft.Page):
         texto_resumen.controls[2].value = "" 
         page.update()
 
-    # ¡Error solucionado! El botón ya no tiene la palabra 'color='
     btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", visible=False, on_click=volver_a_hora)
 
     input_nombre = ft.TextField(label="Tu Nombre Completo", icon=ft.Icons.PERSON, visible=False)
@@ -196,10 +195,24 @@ def main(page: ft.Page):
         except:
             horas_ocupadas = [] 
 
+        # --- AQUÍ ESTÁ LA MAGIA DEL TIEMPO ---
+        # Calculamos la hora exacta en Cuernavaca (Centro de México: UTC -6)
+        ahora_mx = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+        fecha_hoy_str = ahora_mx.strftime("%Y-%m-%d")
+
         contenedor_horarios.controls.clear()
 
         for h in todas_las_horas:
-            if h in horas_ocupadas:
+            # Convertimos el texto "10:00 AM" a un formato de reloj que Python entienda
+            hora_formato = datetime.datetime.strptime(h, "%I:%M %p").time()
+            
+            # Revisamos si el cliente seleccionó el día de hoy
+            es_hoy = (fecha == fecha_hoy_str)
+            # Revisamos si esa hora en específico ya quedó atrás
+            ya_paso = es_hoy and (hora_formato <= ahora_mx.time())
+
+            # Si la hora ya está en la base de datos, O si ya pasó el tiempo... se bloquea.
+            if (h in horas_ocupadas) or ya_paso:
                 contenedor_horarios.controls.append(
                     ft.ElevatedButton(
                         h, icon=ft.Icons.LOCK, width=115, disabled=True,
@@ -237,9 +250,10 @@ def main(page: ft.Page):
             mostrar_horarios(fecha_val)
             page.update()
 
-    hoy = datetime.datetime.now()
+    # Calculamos el día de hoy en Cuernavaca para que el calendario empiece correcto
+    ahora_mx_inicio = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
     date_picker = ft.DatePicker(
-        first_date=hoy, 
+        first_date=ahora_mx_inicio, 
         on_change=cambiar_fecha,
         help_text="Selecciona tu día de cita",
         cancel_text="Cancelar",
