@@ -61,7 +61,6 @@ def main(page: ft.Page):
         texto_resumen.controls[2].value = "" 
         page.update()
 
-    # ¡EL ARREGLO ESTÁ AQUÍ! Usamos style=ft.ButtonStyle en lugar de color=
     btn_cambiar_hora = ft.TextButton(
         "✏️ Cambiar Hora", 
         style=ft.ButtonStyle(color=ACCENT_COLOR), 
@@ -281,7 +280,8 @@ def main(page: ft.Page):
     page.add(
         ft.Container(height=10),
         header_logo, 
-        ft.Text("RESERVA TU ESPACIO", size=20, weight="bold", color=TEXT_WHITE, tracking=2),
+        # ¡ERROR CORREGIDO! Ya no existe la palabra 'tracking'
+        ft.Text("RESERVA TU ESPACIO", size=20, weight="bold", color=TEXT_WHITE),
         ft.Divider(height=20, color=CARD_COLOR),
         
         ft.ElevatedButton(
