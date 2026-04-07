@@ -19,20 +19,17 @@ servicios_disponibles = {
 header_logo_src = "fisik.png" 
 
 # --- NUEVA PALETA DE COLORES "DARK PREMIUM" ---
-BG_COLOR = "#2D3E6B"        # Azul profundo de fondo
-CARD_COLOR = "#0C1533"      # Azul casi negro para tarjetas y botones
-ACCENT_COLOR = "#D200AC"    # Magenta/Neón brillante (como en tu imagen)
-MUTED_COLOR = "#1D284C"     # Un azul intermedio para cosas inactivas
+BG_COLOR = "#2D3E6B"        
+CARD_COLOR = "#0C1533"      
+ACCENT_COLOR = "#D200AC"    
+MUTED_COLOR = "#1D284C"     
 TEXT_WHITE = ft.Colors.WHITE
 
 def main(page: ft.Page):
     page.title = "Agenda tu Cita - Fisi-K Center"
-    
-    # Activamos el modo oscuro y aplicamos los nuevos colores
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG_COLOR
     page.locale = "es" 
-    # El calendario usará el magenta como color principal
     page.theme = ft.Theme(color_scheme_seed=ACCENT_COLOR) 
     
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
@@ -64,9 +61,14 @@ def main(page: ft.Page):
         texto_resumen.controls[2].value = "" 
         page.update()
 
-    btn_cambiar_hora = ft.TextButton("✏️ Cambiar Hora", icon_color=ACCENT_COLOR, color=ACCENT_COLOR, visible=False, on_click=volver_a_hora)
+    # ¡EL ARREGLO ESTÁ AQUÍ! Usamos style=ft.ButtonStyle en lugar de color=
+    btn_cambiar_hora = ft.TextButton(
+        "✏️ Cambiar Hora", 
+        style=ft.ButtonStyle(color=ACCENT_COLOR), 
+        visible=False, 
+        on_click=volver_a_hora
+    )
 
-    # Campos de texto con bordes redondeados y estilo oscuro
     input_nombre = ft.TextField(
         label="Tu Nombre Completo", icon=ft.Icons.PERSON, visible=False,
         bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15
@@ -111,11 +113,8 @@ def main(page: ft.Page):
                         ft.Text(sub, size=12, color=TEXT_WHITE)
                     ]),
                     width=180,
-                    bgcolor=MUTED_COLOR, # Un azul ligeramente más claro para resaltar
-                    style=ft.ButtonStyle(
-                        padding=10, 
-                        shape=ft.RoundedRectangleBorder(radius=12)
-                    ),
+                    bgcolor=MUTED_COLOR, 
+                    style=ft.ButtonStyle(padding=10, shape=ft.RoundedRectangleBorder(radius=12)),
                     on_click=lambda e, s=f"{categoria.split(' ')[1]} - {sub}": seleccionar_servicio(s)
                 )
             )
@@ -126,27 +125,23 @@ def main(page: ft.Page):
             ft.ElevatedButton(
                 content=ft.Text(cat, size=13, text_align=ft.TextAlign.CENTER, color=TEXT_WHITE),
                 width=150,
-                bgcolor=ft.Colors.TRANSPARENT, # Fondo transparente para que resalte la derecha
-                style=ft.ButtonStyle(
-                    padding=5,
-                    shape=ft.RoundedRectangleBorder(radius=10)
-                ),
+                bgcolor=ft.Colors.TRANSPARENT, 
+                style=ft.ButtonStyle(padding=5, shape=ft.RoundedRectangleBorder(radius=10)),
                 on_click=lambda e, c=cat: mostrar_subservicios(c)
             )
         )
 
-    # Contenedor de servicios estilo "Dark Dashboard"
     contenedor_servicios = ft.Column([
         ft.Text("Paso 3: Selecciona tu servicio", size=18, weight="bold", color=TEXT_WHITE),
         ft.Container(
             content=ft.Row([
                 col_categorias,
-                ft.VerticalDivider(width=1, color=BG_COLOR), # Divisor que combina con el fondo
+                ft.VerticalDivider(width=1, color=BG_COLOR), 
                 col_subservicios
             ], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.START),
             padding=15,
-            border_radius=20, # Bordes súper redondos
-            bgcolor=CARD_COLOR, # Tarjeta casi negra
+            border_radius=20, 
+            bgcolor=CARD_COLOR, 
             width=380
         )
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
@@ -186,7 +181,6 @@ def main(page: ft.Page):
             btn_confirmar.text = "Confirmar Cita"
             page.update()
 
-    # Botón principal vibrante
     btn_confirmar = ft.ElevatedButton(
         "Confirmar Cita", 
         icon=ft.Icons.CHECK, 
@@ -244,7 +238,6 @@ def main(page: ft.Page):
                     )
                 )
             else:
-                # Estilo de tarjeta oscura con círculo magenta (como en la imagen)
                 contenedor_horarios.controls.append(
                     ft.ElevatedButton(
                         h, icon=ft.Icons.RADIO_BUTTON_UNCHECKED, icon_color=ACCENT_COLOR,
@@ -291,7 +284,6 @@ def main(page: ft.Page):
         ft.Text("RESERVA TU ESPACIO", size=20, weight="bold", color=TEXT_WHITE, tracking=2),
         ft.Divider(height=20, color=CARD_COLOR),
         
-        # Botón de Paso 1 estilo Premium
         ft.ElevatedButton(
             "Elegir Día en Calendario", 
             icon=ft.Icons.CALENDAR_MONTH, 
