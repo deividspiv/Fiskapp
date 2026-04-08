@@ -14,9 +14,15 @@ def main(page: ft.Page):
     page.title = "Fisi-K Admin"
     page.theme_mode = ft.ThemeMode.DARK
     page.bgcolor = BG_COLOR
+    page.locale = "es"
+    page.theme = ft.Theme(color_scheme_seed=ACCENT_COLOR)
     page.scroll = "adaptive"
     page.window.width = 400
     page.window.height = 750
+
+    # Calculamos el día de hoy al abrir la app
+    ahora_mx = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+    fecha_consulta = ahora_mx.strftime("%Y-%m-%d")
 
     # --- 1. PANTALLA DE LOGIN ---
     input_pin = ft.TextField(
@@ -36,7 +42,7 @@ def main(page: ft.Page):
         if input_pin.value == PIN_SECRETO:
             pantalla_login.visible = False
             pantalla_admin.visible = True
-            cargar_citas_hoy()
+            cargar_citas()
         else:
             texto_error.value = "PIN Incorrecto. Intenta de nuevo."
             texto_error.visible = True
@@ -58,6 +64,7 @@ def main(page: ft.Page):
 
     # --- 2. PANTALLA DE ADMINISTRADOR ---
     lista_citas_ui = ft.Column(spacing=15)
+    texto_fecha_ui = ft.Text(f"CITAS DEL: {fecha_consulta}", size=18, weight="bold")
     
     def confirmar_asistencia(e, cita_id, boton):
         try:
@@ -74,27 +81,23 @@ def main(page: ft.Page):
             boton.bgcolor = ACCENT_COLOR
             page.update()
 
-    def cargar_citas_hoy():
+    def cargar_citas():
         lista_citas_ui.controls.clear()
-        
-        ahora_mx = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-        hoy_str = ahora_mx.strftime("%Y-%m-%d")
         
         try:
             todas_las_citas = obtener_citas()
-            citas_hoy = [c for c in todas_las_citas if c.get('fecha') == hoy_str]
+            # ¡EL CAMBIO MÁGICO! Ahora filtra por la fecha que tú elijas en el calendario
+            citas_dia = [c for c in todas_las_citas if c.get('fecha') == fecha_consulta]
             
-            # --- LECTURA SEGURA: Evitamos el error si falta la hora para ordenar ---
-            citas_hoy_validas = [c for c in citas_hoy if c.get('hora')]
-            citas_hoy_validas.sort(key=lambda x: datetime.datetime.strptime(x['hora'], "%I:%M %p"))
+            citas_dia_validas = [c for c in citas_dia if c.get('hora')]
+            citas_dia_validas.sort(key=lambda x: datetime.datetime.strptime(x['hora'], "%I:%M %p"))
 
-            if not citas_hoy_validas:
+            if not citas_dia_validas:
                 lista_citas_ui.controls.append(
-                    ft.Text("No hay citas agendadas para hoy.", color=ft.Colors.WHITE54, italic=True)
+                    ft.Text("No hay citas agendadas para este día.", color=ft.Colors.WHITE54, italic=True)
                 )
             
-            for cita in citas_hoy_validas:
-                # --- LECTURA SEGURA: Pedimos los datos sin provocar colapsos ---
+            for cita in citas_dia_validas:
                 ya_asistio = cita.get('asistio', False)
                 telefono_seguro = cita.get('cliente_telefono', 'Sin número')
                 nombre_seguro = cita.get('cliente_nombre', 'Cliente Anónimo')
@@ -141,17 +144,33 @@ def main(page: ft.Page):
         
         page.update()
 
-    btn_refrescar = ft.FloatingActionButton(
-        icon=ft.Icons.REFRESH, 
-        bgcolor=ACCENT_COLOR, 
-        on_click=lambda _: cargar_citas_hoy()
+    def cambiar_fecha_admin(e):
+        nonlocal fecha_consulta
+        if e.control.value:
+            fecha_consulta = e.control.value.strftime("%Y-%m-%d")
+            texto_fecha_ui.value = f"CITAS DEL: {fecha_consulta}"
+            cargar_citas()
+            page.update()
+
+    # Nuevo Calendario oculto para el administrador
+    date_picker_admin = ft.DatePicker(
+        on_change=cambiar_fecha_admin,
+        help_text="Selecciona un día para ver su agenda",
+        cancel_text="Cancelar",
+        confirm_text="Buscar"
+    )
+
+    btn_buscar_fecha = ft.IconButton(
+        icon=ft.Icons.CALENDAR_MONTH, 
+        icon_color=ACCENT_COLOR,
+        on_click=lambda _: page.show_dialog(date_picker_admin)
     )
 
     pantalla_admin = ft.Column([
         ft.Container(height=10),
         ft.Row([
-            ft.Text("CITAS DE HOY", size=24, weight="bold"),
-            btn_refrescar
+            texto_fecha_ui,
+            btn_buscar_fecha
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ft.Divider(color=ACCENT_COLOR),
         lista_citas_ui
