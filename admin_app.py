@@ -4,10 +4,10 @@ import datetime
 from supa_config import obtener_citas, marcar_asistencia
 
 # --- CONFIGURACIÓN ---
-PIN_SECRETO = "2026"  # <--- Cambia esto por el NIP que tú quieras
+PIN_SECRETO = "2026"  # <--- Tu NIP
 BG_COLOR = "#0C1533"
 CARD_COLOR = "#1D284C"
-ACCENT_COLOR = "#89F336" # Usamos tu verde lima para el admin
+ACCENT_COLOR = "#89F336" # Tu verde lima
 TEXT_WHITE = ft.Colors.WHITE
 
 def main(page: ft.Page):
@@ -48,7 +48,6 @@ def main(page: ft.Page):
     pantalla_login = ft.Column([
         ft.Container(height=100),
         ft.Icon(ft.Icons.LOCK_OUTLINE, size=80, color=ACCENT_COLOR),
-        # ¡Corregido! Sin el 'tracking'
         ft.Text("ACCESO RESTRINGIDO", size=20, weight="bold"),
         ft.Text("Solo personal autorizado", color=ft.Colors.WHITE54),
         ft.Container(height=20),
@@ -70,36 +69,44 @@ def main(page: ft.Page):
             page.show_dialog(ft.SnackBar(ft.Text("Asistencia y sellito registrado."), bgcolor=ft.Colors.GREEN, open=True))
         except Exception as ex:
             page.show_dialog(ft.SnackBar(ft.Text(f"Error: {ex}"), bgcolor=ft.Colors.RED, open=True))
+            boton.disabled = False
+            boton.text = "Dar Sellito"
+            boton.bgcolor = ACCENT_COLOR
+            page.update()
 
     def cargar_citas_hoy():
         lista_citas_ui.controls.clear()
         
-        # Ajuste de hora local
         ahora_mx = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
         hoy_str = ahora_mx.strftime("%Y-%m-%d")
         
         try:
             todas_las_citas = obtener_citas()
-            # Filtramos solo las de hoy
             citas_hoy = [c for c in todas_las_citas if c.get('fecha') == hoy_str]
             
-            # Ordenamos por hora
-            citas_hoy.sort(key=lambda x: datetime.datetime.strptime(x['hora'], "%I:%M %p"))
+            # --- LECTURA SEGURA: Evitamos el error si falta la hora para ordenar ---
+            citas_hoy_validas = [c for c in citas_hoy if c.get('hora')]
+            citas_hoy_validas.sort(key=lambda x: datetime.datetime.strptime(x['hora'], "%I:%M %p"))
 
-            if not citas_hoy:
+            if not citas_hoy_validas:
                 lista_citas_ui.controls.append(
                     ft.Text("No hay citas agendadas para hoy.", color=ft.Colors.WHITE54, italic=True)
                 )
             
-            for cita in citas_hoy:
+            for cita in citas_hoy_validas:
+                # --- LECTURA SEGURA: Pedimos los datos sin provocar colapsos ---
                 ya_asistio = cita.get('asistio', False)
+                telefono_seguro = cita.get('telefono', 'Sin número')
+                nombre_seguro = cita.get('nombre', 'Cliente Anónimo')
+                hora_segura = cita.get('hora', 'Sin hora')
+                servicio_seguro = cita.get('servicio', 'Servicio no especificado')
+                cita_id = cita.get('id')
                 
-                # Botón inteligente para WhatsApp (Funciona perfecto en Android/iOS)
                 btn_wa = ft.IconButton(
                     icon=ft.Icons.CHAT, 
                     icon_color=ft.Colors.GREEN_400,
                     tooltip="Enviar WhatsApp",
-                    on_click=lambda e, tel=cita['telefono'], nom=cita['nombre']: page.launch_url(f"https://wa.me/52{tel}?text=Hola {nom}, te escribimos de Fisi-K Center para confirmar tu cita de hoy.")
+                    on_click=lambda e, tel=telefono_seguro, nom=nombre_seguro: page.launch_url(f"https://wa.me/52{tel}?text=Hola {nom}, te escribimos de Fisi-K Center para confirmar tu cita de hoy.")
                 )
                 
                 btn_asistencia = ft.ElevatedButton(
@@ -107,18 +114,18 @@ def main(page: ft.Page):
                     bgcolor=ft.Colors.GREEN_700 if ya_asistio else ACCENT_COLOR,
                     color=TEXT_WHITE if ya_asistio else BG_COLOR,
                     disabled=ya_asistio,
-                    on_click=lambda e, cid=cita.get('id'): confirmar_asistencia(e, cid, e.control)
+                    on_click=lambda e, cid=cita_id: confirmar_asistencia(e, cid, e.control)
                 )
 
                 tarjeta = ft.Container(
                     content=ft.Column([
                         ft.Row([
-                            ft.Text(cita['hora'], size=18, weight="bold", color=ACCENT_COLOR),
+                            ft.Text(hora_segura, size=18, weight="bold", color=ACCENT_COLOR),
                             btn_wa
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Text(cita['nombre'].upper(), size=16, weight="bold"),
-                        ft.Text(f"📞 {cita['telefono']}", color=ft.Colors.WHITE70),
-                        ft.Text(f"💆‍♀️ {cita['servicio']}", color=ft.Colors.WHITE70),
+                        ft.Text(nombre_seguro.upper(), size=16, weight="bold"),
+                        ft.Text(f"📞 {telefono_seguro}", color=ft.Colors.WHITE70),
+                        ft.Text(f"💆‍♀️ {servicio_seguro}", color=ft.Colors.WHITE70),
                         ft.Divider(color=ft.Colors.WHITE24),
                         btn_asistencia
                     ]),
@@ -143,7 +150,6 @@ def main(page: ft.Page):
     pantalla_admin = ft.Column([
         ft.Container(height=10),
         ft.Row([
-            # ¡Corregido! Sin el 'tracking'
             ft.Text("CITAS DE HOY", size=24, weight="bold"),
             btn_refrescar
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
