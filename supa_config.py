@@ -47,3 +47,12 @@ def borrar_cita(cita_id):
     
     if respuesta.status_code not in (200, 204):
         raise Exception(f"Error al borrar: {respuesta.text}")
+def marcar_asistencia(cita_id):
+    """Cambia el estatus de asistencia a Verdadero para el programa de lealtad"""
+    try:
+        # Asumiendo que tu cliente de supabase se llama 'supabase'
+        respuesta = supabase.table("citas").update({"asistio": True}).eq("id", cita_id).execute()
+        return respuesta
+    except Exception as e:
+        print(f"Error al marcar asistencia: {e}")
+        raise e
