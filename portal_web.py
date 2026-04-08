@@ -54,18 +54,22 @@ def main(page: ft.Page):
             grid_sellos.controls.clear()
             for i in range(1, 7):
                 esta_lleno = i <= conteo
+                # ¡ERROR CORREGIDO! Centramos el ícono con un Row a prueba de fallos
                 grid_sellos.controls.append(
                     ft.Container(
-                        content=ft.Icon(
-                            ft.Icons.FAVORITE if esta_lleno else ft.Icons.FAVORITE_BORDER,
-                            color=ACCENT_COLOR if esta_lleno else ft.Colors.WHITE24,
-                            size=30
+                        content=ft.Row(
+                            [ft.Icon(
+                                ft.Icons.FAVORITE if esta_lleno else ft.Icons.FAVORITE_BORDER,
+                                color=ACCENT_COLOR if esta_lleno else ft.Colors.WHITE24,
+                                size=24
+                            )],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER
                         ),
                         width=50, height=50,
                         bgcolor=MUTED_COLOR if esta_lleno else ft.Colors.TRANSPARENT,
                         border=ft.border.all(1, ACCENT_COLOR if esta_lleno else ft.Colors.WHITE24),
-                        border_radius=25,
-                        alignment=ft.alignment.center
+                        border_radius=25
                     )
                 )
             
@@ -109,7 +113,7 @@ def main(page: ft.Page):
             mensaje_lealtad
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
         padding=20, border_radius=25, bgcolor=CARD_COLOR, width=380,
-        visible=False # <--- Oculto por defecto
+        visible=False
     )
 
     def toggle_lealtad(e):
