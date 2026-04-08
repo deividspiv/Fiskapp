@@ -9,7 +9,6 @@ ACCENT_COLOR = "#D200AC"
 MUTED_COLOR = "#1D284C"     
 TEXT_WHITE = ft.Colors.WHITE
 
-# ¡NUEVO! Diccionario con precios para cada servicio
 servicios_disponibles = {
     "💆‍♀️ Masajes": {
         "Relajantes": 500, "Descontracturantes": 600, "Deportivo": 700, "Holístico": 650, "Aromaterapia": 550
@@ -140,7 +139,6 @@ def main(page: ft.Page):
     def mostrar_subservicios(categoria):
         col_subservicios.controls.clear()
         col_subservicios.controls.append(ft.Text(categoria, weight="bold", size=14, color=TEXT_WHITE))
-        # ¡AQUÍ ESTÁ LA MAGIA DEL PRECIO!
         for sub, precio in servicios_disponibles[categoria].items():
             servicio_db = f"{categoria.split(' ')[1]} - {sub} (${precio})"
             col_subservicios.controls.append(
@@ -249,6 +247,9 @@ def main(page: ft.Page):
     grid_sellos = ft.Row(wrap=True, alignment=ft.MainAxisAlignment.CENTER, visible=False)
     mensaje_lealtad = ft.Text("", weight="bold", size=16, color=TEXT_WHITE, text_align=ft.TextAlign.CENTER, visible=False)
 
+    # ==========================================
+    # ¡NUEVA LÓGICA DE CICLO INFINITO!
+    # ==========================================
     def consultar_lealtad(e):
         whatsapp = input_wa_lealtad.value
         if not whatsapp: return
@@ -257,13 +258,27 @@ def main(page: ft.Page):
         page.update()
         try:
             citas_aprobadas = [c for c in obtener_citas() if str(c.get('cliente_telefono')) == str(whatsapp) and c.get('asistio') == True]
-            conteo = len(citas_aprobadas)
+            conteo_historico = len(citas_aprobadas)
+            
+            # Magia matemática: el residuo de dividir entre 6
+            conteo = conteo_historico % 6
+            
+            # Si el residuo es 0 pero ya tiene citas, significa que acaba de llenar la tarjeta de 6
+            if conteo == 0 and conteo_historico > 0:
+                conteo = 6
+
             grid_sellos.controls.clear()
             for i in range(1, 7):
                 esta_lleno = i <= conteo
                 icono_sello = ft.Image(src=header_logo_src, width=30, height=30, fit="cover", border_radius=15) if esta_lleno else ft.Icon(ft.Icons.CIRCLE_OUTLINED, color=ft.Colors.WHITE24, size=24)
                 grid_sellos.controls.append(ft.Container(content=ft.Row([icono_sello], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER), width=50, height=50, bgcolor=MUTED_COLOR if esta_lleno else ft.Colors.TRANSPARENT, border=ft.border.all(1, ACCENT_COLOR if esta_lleno else ft.Colors.WHITE24), border_radius=25))
-            mensaje_lealtad.value, mensaje_lealtad.visible, grid_sellos.visible = f"¡Llevas {conteo} de 6 masajes!\n" + ("¡Felicidades, el próximo es GRATIS!" if conteo >= 6 else "¡Sigue así!"), True, True
+            
+            if conteo == 6:
+                mensaje_lealtad.value = "¡Completaste tus 6 masajes!\n🎉 ¡Tu próxima visita es GRATIS! 🎉"
+            else:
+                mensaje_lealtad.value = f"¡Llevas {conteo} de 6 masajes!\n¡Sigue así para tu premio!"
+                
+            mensaje_lealtad.visible, grid_sellos.visible = True, True
         except Exception as ex:
              page.show_dialog(ft.SnackBar(ft.Text(f"Error: {ex}"), open=True))
         btn_verificar_lealtad.disabled, btn_verificar_lealtad.content = False, ft.Text("Verificar Mi Plan", weight="bold")
