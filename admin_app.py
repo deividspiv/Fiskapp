@@ -48,7 +48,8 @@ def main(page: ft.Page):
     pantalla_login = ft.Column([
         ft.Container(height=100),
         ft.Icon(ft.Icons.LOCK_OUTLINE, size=80, color=ACCENT_COLOR),
-        ft.Text("ACCESO RESTRINGIDO", size=20, weight="bold", tracking=2),
+        # ¡Corregido! Sin el 'tracking'
+        ft.Text("ACCESO RESTRINGIDO", size=20, weight="bold"),
         ft.Text("Solo personal autorizado", color=ft.Colors.WHITE54),
         ft.Container(height=20),
         input_pin,
@@ -142,7 +143,8 @@ def main(page: ft.Page):
     pantalla_admin = ft.Column([
         ft.Container(height=10),
         ft.Row([
-            ft.Text("CITAS DE HOY", size=24, weight="bold", tracking=2),
+            # ¡Corregido! Sin el 'tracking'
+            ft.Text("CITAS DE HOY", size=24, weight="bold"),
             btn_refrescar
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ft.Divider(color=ACCENT_COLOR),
