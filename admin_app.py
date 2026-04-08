@@ -55,13 +55,14 @@ def main(page: ft.Page):
     lista_historial_ui = ft.Column(spacing=15)
     texto_fecha_ui = ft.Text(f"AGENDA: {fecha_consulta}", size=16, weight="bold", color=ACCENT_COLOR)
     
-    # Textos de finanzas
     texto_ganancias = ft.Text("$0", size=40, weight="bold", color=ACCENT_COLOR)
     texto_pacientes = ft.Text("0 pacientes", size=18, color=TEXT_WHITE)
 
     def confirmar_asistencia(e, cita_id, boton):
         try:
-            boton.disabled, boton.text, boton.bgcolor = True, "Aprobado ✅", ft.Colors.GREEN_700
+            boton.disabled = True
+            boton.content = ft.Text("Aprobado ✅", weight="bold")
+            boton.bgcolor = ft.Colors.GREEN_700
             page.update()
             marcar_asistencia(cita_id)
             page.show_dialog(ft.SnackBar(ft.Text("Asistencia y sellito registrado."), bgcolor=ft.Colors.GREEN, open=True))
@@ -71,7 +72,13 @@ def main(page: ft.Page):
     def crear_tarjeta_cita(cita):
         ya_asistio = cita.get('asistio', False)
         btn_wa = ft.IconButton(icon=ft.Icons.CHAT, icon_color=ft.Colors.GREEN_400, on_click=lambda e: page.launch_url(f"https://wa.me/52{cita.get('cliente_telefono')}?text=Hola {cita.get('cliente_nombre')}, te escribimos de Fisi-K Center."))
-        btn_asistencia = ft.ElevatedButton("Aprobado ✅" if ya_asistio else "Dar Sellito", bgcolor=ft.Colors.GREEN_700 if ya_asistio else ACCENT_COLOR, color=TEXT_WHITE if ya_asistio else BG_COLOR, disabled=ya_asistio, on_click=lambda e, cid=cita.get('id'): confirmar_asistencia(e, cid, e.control))
+        btn_asistencia = ft.ElevatedButton(
+            content=ft.Text("Aprobado ✅" if ya_asistio else "Dar Sellito", weight="bold"), 
+            bgcolor=ft.Colors.GREEN_700 if ya_asistio else ACCENT_COLOR, 
+            color=TEXT_WHITE if ya_asistio else BG_COLOR, 
+            disabled=ya_asistio, 
+            on_click=lambda e, cid=cita.get('id'): confirmar_asistencia(e, cid, e.control)
+        )
         return ft.Container(
             content=ft.Column([
                 ft.Row([ft.Text(f"📅 {cita.get('fecha')} - {cita.get('hora')}", size=14, weight="bold", color=ACCENT_COLOR), btn_wa], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
@@ -100,7 +107,6 @@ def main(page: ft.Page):
         lista_historial_ui.controls.clear()
         try:
             todas = obtener_citas()
-            # Mostramos las ultimas 30 citas, sin importar la fecha
             todas.reverse() 
             for c in todas[:30]:
                 lista_historial_ui.controls.append(crear_tarjeta_cita(c))
@@ -111,19 +117,16 @@ def main(page: ft.Page):
     def cargar_finanzas():
         try:
             todas = obtener_citas()
-            # Solo contamos los que SÍ asistieron y pagaron
             completadas = [c for c in todas if c.get('asistio') == True]
             total_dinero = 0
             
             for c in completadas:
                 servicio_str = c.get('servicio', '')
-                # Si tiene el $ en el nombre (como el nuevo portal)
                 if '$' in servicio_str:
                     try:
                         precio = int(servicio_str.split('$')[-1].replace(')', '').replace(' MXN', '').strip())
                         total_dinero += precio
                     except: pass
-                # Si es una cita vieja sin $, usamos el diccionario de respaldo
                 else:
                     for nombre, precio in PRECIOS_HISTORICOS.items():
                         if nombre in servicio_str:
@@ -182,12 +185,13 @@ def main(page: ft.Page):
         if idx == 2: cargar_finanzas()
         page.update()
 
+    # ¡ERROR CORREGIDO AQUÍ! Usamos tab_content en lugar de text
     tabs_menu = ft.Tabs(
         selected_index=0, animation_duration=300,
         tabs=[
-            ft.Tab(text="📅 Agenda"),
-            ft.Tab(text="📚 Historial"),
-            ft.Tab(text="📈 Finanzas"),
+            ft.Tab(tab_content=ft.Text("📅 Agenda", weight="bold")),
+            ft.Tab(tab_content=ft.Text("📚 Historial", weight="bold")),
+            ft.Tab(tab_content=ft.Text("📈 Finanzas", weight="bold")),
         ],
         on_change=cambiar_tab
     )
