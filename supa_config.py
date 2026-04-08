@@ -47,12 +47,21 @@ def borrar_cita(cita_id):
     
     if respuesta.status_code not in (200, 204):
         raise Exception(f"Error al borrar: {respuesta.text}")
+
+# --- FUNCIÓN CORREGIDA CON REQUESTS ---
 def marcar_asistencia(cita_id):
     """Cambia el estatus de asistencia a Verdadero para el programa de lealtad"""
-    try:
-        # Asumiendo que tu cliente de supabase se llama 'supabase'
-        respuesta = supabase.table("citas").update({"asistio": True}).eq("id", cita_id).execute()
-        return respuesta
-    except Exception as e:
-        print(f"Error al marcar asistencia: {e}")
-        raise e
+    url = f"{SUPABASE_URL}/rest/v1/Citas?id=eq.{cita_id}" 
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal" 
+    }
+    datos = {
+        "asistio": True
+    }
+    respuesta = requests.patch(url, headers=headers, json=datos, verify=False)
+    
+    if respuesta.status_code not in (200, 204):
+        raise Exception(f"Error al marcar asistencia: {respuesta.text}")
