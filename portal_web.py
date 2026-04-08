@@ -51,7 +51,6 @@ def main(page: ft.Page):
         btn_siguiente_1.disabled = btn_siguiente_2.disabled = True
         grid_servicios.controls.clear()
         grid_servicios.controls.append(ft.Text("👈 Toca una categoría arriba", italic=True, color=ft.Colors.WHITE54))
-        # Reiniciar botones de categoría
         for btn in row_categorias.controls:
             btn.bgcolor = CARD_COLOR
             btn.color = TEXT_WHITE
@@ -125,7 +124,7 @@ def main(page: ft.Page):
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
     # ==========================================
-    # NUEVO PASO 2: DISEÑO "BADASS" PREMIUM
+    # PASO 2: DISEÑO "BADASS" PREMIUM (CORREGIDO)
     # ==========================================
     btn_siguiente_2 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: ir_a_paso3())
     
@@ -136,13 +135,12 @@ def main(page: ft.Page):
     def seleccionar_servicio(e, servicio_completo):
         nonlocal servicio_val
         servicio_val = servicio_completo
-        # Efecto Neón y Elevación en la tarjeta seleccionada
         for card in grid_servicios.controls:
             if isinstance(card, ft.Container):
                 if card.data == servicio_completo:
                     card.bgcolor = CARD_COLOR
                     card.border = ft.border.all(2, ACCENT_COLOR)
-                    card.shadow = ft.BoxShadow(spread_radius=1, blur_radius=15, color=ACCENT_COLOR) # Brillo Neón
+                    card.shadow = ft.BoxShadow(spread_radius=1, blur_radius=15, color=ACCENT_COLOR) 
                 else:
                     card.bgcolor = MUTED_COLOR
                     card.border = ft.border.all(1, ft.Colors.WHITE10)
@@ -151,7 +149,6 @@ def main(page: ft.Page):
         page.update()
 
     def mostrar_subservicios(e, categoria):
-        # Resaltar el botón de categoría superior
         for btn in row_categorias.controls:
             if btn.data == categoria:
                 btn.bgcolor = ACCENT_COLOR
@@ -162,7 +159,6 @@ def main(page: ft.Page):
 
         grid_servicios.controls.clear()
 
-        # Construir la cuadrícula de tarjetas elegantes
         for sub, precio in servicios_disponibles[categoria].items():
             servicio_db = f"{categoria.split(' ')[1]} - {sub} (${precio})"
             tarjeta = ft.Container(
@@ -177,12 +173,11 @@ def main(page: ft.Page):
                 border_radius=15,
                 border=ft.border.all(1, ft.Colors.WHITE10),
                 on_click=lambda ev, s=servicio_db: seleccionar_servicio(ev, s),
-                animate=ft.animation.Animation(300, "easeOut") # Animación suave al tocar
+                animate=ft.animation.Animation(300, "easeOut") 
             )
             grid_servicios.controls.append(tarjeta)
         page.update()
 
-    # Llenar el menú horizontal de categorías
     for cat in servicios_disponibles.keys():
         row_categorias.controls.append(
             ft.ElevatedButton(
@@ -199,11 +194,13 @@ def main(page: ft.Page):
         ft.Text("PASO 2 DE 3", size=12, color=ACCENT_COLOR, weight="bold"),
         ft.Text("¿Qué servicio buscas?", size=20, weight="bold"),
         ft.Container(height=10),
-        row_categorias, # Menú ancho
+        row_categorias, 
         ft.Container(height=15),
+        # ¡ERROR CORREGIDO AQUÍ! Se eliminó el alignment problemático
         ft.Container(
-            content=grid_servicios, # Cuadrícula de tarjetas
-            padding=10, width=380, alignment=ft.alignment.center
+            content=grid_servicios, 
+            padding=10, 
+            width=380
         ),
         ft.Container(height=20),
         ft.Row([ft.TextButton("⬅️ Atrás", on_click=lambda _: cambiar_vista(vista_paso1), style=ft.ButtonStyle(color=ft.Colors.WHITE54)), btn_siguiente_2], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, width=380)
@@ -335,4 +332,4 @@ def main(page: ft.Page):
 
     page.add(ft.Container(height=10), header_logo, ft.Text("FISI-K CENTER", size=22, weight="bold", color=TEXT_WHITE), ft.Divider(height=20, color=ft.Colors.TRANSPARENT), vista_inicio, vista_paso1, vista_paso2, vista_paso3, vista_exito, vista_cancelar, vista_lealtad, ft.Container(height=50))
 
-ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0", assets_dir=".")
+ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=int(os.environ.get("PORT", 8080)), host="0.0.0.0")
