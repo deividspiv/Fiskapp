@@ -1,7 +1,8 @@
 import flet as ft
-import os 
+import os
 import datetime
-from supa_config import obtener_citas, marcar_asistencia
+# ¡IMPORTANTE! Agregamos 'guardar_cita' aquí arriba
+from supa_config import obtener_citas, marcar_asistencia, guardar_cita
 
 PIN_SECRETO = "2026"  
 BG_COLOR = "#0C1533"
@@ -9,7 +10,6 @@ CARD_COLOR = "#1D284C"
 ACCENT_COLOR = "#89F336" 
 TEXT_WHITE = ft.Colors.WHITE
 
-# Respaldo de precios para las citas viejas que no tenían el $ guardado
 PRECIOS_HISTORICOS = {
     "Relajantes": 500, "Descontracturantes": 600, "Deportivo": 700, "Holístico": 650, "Aromaterapia": 550,
     "Limpieza profunda": 400, "Hidratante": 450, "Anti-acné": 500, "Anti-edad": 550,
@@ -54,7 +54,6 @@ def main(page: ft.Page):
     lista_agenda_ui = ft.Column(spacing=15)
     lista_historial_ui = ft.Column(spacing=15)
     texto_fecha_ui = ft.Text(f"AGENDA: {fecha_consulta}", size=16, weight="bold", color=ACCENT_COLOR)
-    
     texto_ganancias = ft.Text("$0", size=40, weight="bold", color=ACCENT_COLOR)
     texto_pacientes = ft.Text("0 pacientes", size=18, color=TEXT_WHITE)
 
@@ -73,7 +72,7 @@ def main(page: ft.Page):
         ya_asistio = cita.get('asistio', False)
         btn_wa = ft.IconButton(icon=ft.Icons.CHAT, icon_color=ft.Colors.GREEN_400, on_click=lambda e: page.launch_url(f"https://wa.me/52{cita.get('cliente_telefono')}?text=Hola {cita.get('cliente_nombre')}, te escribimos de Fisi-K Center."))
         btn_asistencia = ft.ElevatedButton(
-            content=ft.Text("Aprobado ✅" if ya_asistio else "Confirmar Cita", weight="bold"), 
+            content=ft.Text("Aprobado ✅" if ya_asistio else "Dar Sellito", weight="bold"), 
             bgcolor=ft.Colors.GREEN_700 if ya_asistio else ACCENT_COLOR, 
             color=TEXT_WHITE if ya_asistio else BG_COLOR, 
             disabled=ya_asistio, 
@@ -139,7 +138,7 @@ def main(page: ft.Page):
             texto_ganancias.value = "Error"
         page.update()
 
-    # --- NAVEGACIÓN Y MENÚ PERSONALIZADO (BLINDADO) ---
+    # --- VISTAS EXISTENTES ---
     def cambiar_fecha_admin(e):
         nonlocal fecha_consulta
         if e.control.value:
@@ -150,62 +149,90 @@ def main(page: ft.Page):
     date_picker_admin = ft.DatePicker(on_change=cambiar_fecha_admin)
     btn_buscar_fecha = ft.IconButton(icon=ft.Icons.CALENDAR_MONTH, icon_color=ACCENT_COLOR, on_click=lambda _: page.show_dialog(date_picker_admin))
 
-    vista_agenda = ft.Column([
-        ft.Row([texto_fecha_ui, btn_buscar_fecha], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        lista_agenda_ui
-    ], visible=True)
-
-    vista_historial = ft.Column([
-        ft.Text("ÚLTIMAS 30 CITAS", size=16, weight="bold", color=ACCENT_COLOR),
-        lista_historial_ui
-    ], visible=False)
-
+    vista_agenda = ft.Column([ft.Row([texto_fecha_ui, btn_buscar_fecha], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), lista_agenda_ui], visible=True)
+    vista_historial = ft.Column([ft.Text("ÚLTIMAS 30 CITAS", size=16, weight="bold", color=ACCENT_COLOR), lista_historial_ui], visible=False)
     vista_finanzas = ft.Column([
-        ft.Text("RESUMEN DE GANANCIAS", size=16, weight="bold", color=ACCENT_COLOR),
-        ft.Container(height=20),
-        ft.Container(
-            content=ft.Column([
-                ft.Icon(ft.Icons.ATTACH_MONEY, size=50, color=ACCENT_COLOR),
-                ft.Text("Ingresos Brutos", color=ft.Colors.WHITE54),
-                texto_ganancias,
-                ft.Divider(color=ft.Colors.WHITE24),
-                texto_pacientes
-            ], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            bgcolor=CARD_COLOR, padding=30, border_radius=20, width=380, border=ft.border.all(1, ACCENT_COLOR)
-        )
+        ft.Text("RESUMEN DE GANANCIAS", size=16, weight="bold", color=ACCENT_COLOR), ft.Container(height=20),
+        ft.Container(content=ft.Column([ft.Icon(ft.Icons.ATTACH_MONEY, size=50, color=ACCENT_COLOR), ft.Text("Ingresos Brutos", color=ft.Colors.WHITE54), texto_ganancias, ft.Divider(color=ft.Colors.WHITE24), texto_pacientes], horizontal_alignment=ft.CrossAxisAlignment.CENTER), bgcolor=CARD_COLOR, padding=30, border_radius=20, width=380, border=ft.border.all(1, ACCENT_COLOR))
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
+    # ==========================================
+    # ¡NUEVO! VISTA DE AGENDAR MANUALMENTE
+    # ==========================================
+    servicios_admin = [
+        "Masajes - Relajantes ($500)", "Masajes - Descontracturantes ($600)", "Masajes - Deportivo ($700)", "Masajes - Holístico ($650)",
+        "Limpiezas - Profunda ($400)", "Limpiezas - Hidratante ($450)", "Limpiezas - Anti-acné ($500)", "Limpiezas - Anti-edad ($550)",
+        "Corporal - Cavitación ($800)", "Corporal - Radiofrecuencia ($750)", "Corporal - PRP ($1200)", "Corporal - Lipoenzimas ($1500)"
+    ]
+    
+    input_admin_fecha = ft.TextField(label="Fecha (YYYY-MM-DD)", value=fecha_consulta, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
+    input_admin_hora = ft.Dropdown(label="Hora", options=[ft.dropdown.Option(h) for h in ["10:00 AM", "11:00 AM", "12:00 PM", "01:00 PM", "02:00 PM", "03:00 PM", "04:00 PM", "05:00 PM", "06:00 PM"]], bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
+    input_admin_nombre = ft.TextField(label="Nombre del Paciente", icon=ft.Icons.PERSON, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
+    input_admin_telefono = ft.TextField(label="Teléfono (Pon 0000000000 si no tiene)", value="0000000000", icon=ft.Icons.PHONE, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
+    input_admin_servicio = ft.Dropdown(label="Servicio a realizar", options=[ft.dropdown.Option(s) for s in servicios_admin], bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
+
+    def guardar_cita_manual(e):
+        if not input_admin_nombre.value or not input_admin_hora.value or not input_admin_servicio.value:
+            page.show_dialog(ft.SnackBar(ft.Text("Por favor, llena los datos principales."), bgcolor=ft.Colors.RED, open=True))
+            return
+        btn_guardar_manual.disabled = True
+        btn_guardar_manual.content = ft.Text("Guardando...", weight="bold")
+        page.update()
+        try:
+            guardar_cita(input_admin_fecha.value, input_admin_hora.value, input_admin_nombre.value, input_admin_telefono.value, input_admin_servicio.value)
+            page.show_dialog(ft.SnackBar(ft.Text("¡Cita agendada con éxito!"), bgcolor=ft.Colors.GREEN, open=True))
+            input_admin_nombre.value = "" 
+            navegar_tab(None, 0) # Regresa automáticamente a la agenda
+        except Exception as ex:
+            page.show_dialog(ft.SnackBar(ft.Text(f"Error: {ex}"), bgcolor=ft.Colors.RED, open=True))
+        btn_guardar_manual.disabled = False
+        btn_guardar_manual.content = ft.Text("Agendar Cita", weight="bold")
+        page.update()
+
+    btn_guardar_manual = ft.ElevatedButton(content=ft.Text("Agendar Cita", weight="bold"), bgcolor=ACCENT_COLOR, color=BG_COLOR, on_click=guardar_cita_manual, style=ft.ButtonStyle(padding=15, shape=ft.RoundedRectangleBorder(radius=15)))
+
+    vista_nueva = ft.Column([
+        ft.Text("AGENDAR MANUALMENTE", size=16, weight="bold", color=ACCENT_COLOR),
+        ft.Text("Registra clientes que están en recepción.", color=ft.Colors.WHITE54, size=12),
+        ft.Container(height=10),
+        input_admin_fecha, input_admin_hora, input_admin_nombre, input_admin_telefono, input_admin_servicio,
+        ft.Container(height=10),
+        btn_guardar_manual
+    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
+
+    # --- CONTROL DE NAVEGACIÓN (AHORA CON 4 PESTAÑAS) ---
     def navegar_tab(e, indice):
-        # Mostrar vista correspondiente
         vista_agenda.visible = (indice == 0)
         vista_historial.visible = (indice == 1)
         vista_finanzas.visible = (indice == 2)
+        vista_nueva.visible = (indice == 3) # La nueva vista
         
-        # Pintar botón activo
         btn_agenda.bgcolor = ACCENT_COLOR if indice == 0 else CARD_COLOR
         btn_historial.bgcolor = ACCENT_COLOR if indice == 1 else CARD_COLOR
         btn_finanzas.bgcolor = ACCENT_COLOR if indice == 2 else CARD_COLOR
+        btn_nueva.bgcolor = ACCENT_COLOR if indice == 3 else CARD_COLOR
         
         btn_agenda.color = BG_COLOR if indice == 0 else TEXT_WHITE
         btn_historial.color = BG_COLOR if indice == 1 else TEXT_WHITE
         btn_finanzas.color = BG_COLOR if indice == 2 else TEXT_WHITE
+        btn_nueva.color = BG_COLOR if indice == 3 else TEXT_WHITE
         
-        # Cargar datos
         if indice == 0: cargar_agenda()
         if indice == 1: cargar_historial()
         if indice == 2: cargar_finanzas()
         page.update()
 
-    # Botones que simulan las pestañas
     btn_agenda = ft.ElevatedButton(content=ft.Text("📅 Agenda", weight="bold"), bgcolor=ACCENT_COLOR, color=BG_COLOR, on_click=lambda e: navegar_tab(e, 0))
-    btn_historial = ft.ElevatedButton(content=ft.Text("📚 Historial", weight="bold"), bgcolor=CARD_COLOR, color=TEXT_WHITE, on_click=lambda e: navegar_tab(e, 1))
-    btn_finanzas = ft.ElevatedButton(content=ft.Text("📈 Finanzas", weight="bold"), bgcolor=CARD_COLOR, color=TEXT_WHITE, on_click=lambda e: navegar_tab(e, 2))
+    btn_historial = ft.ElevatedButton(content=ft.Text("📚 Hist", weight="bold"), bgcolor=CARD_COLOR, color=TEXT_WHITE, on_click=lambda e: navegar_tab(e, 1))
+    btn_finanzas = ft.ElevatedButton(content=ft.Text("📈 $$$", weight="bold"), bgcolor=CARD_COLOR, color=TEXT_WHITE, on_click=lambda e: navegar_tab(e, 2))
+    btn_nueva = ft.ElevatedButton(content=ft.Text("➕ Nueva", weight="bold"), bgcolor=CARD_COLOR, color=TEXT_WHITE, on_click=lambda e: navegar_tab(e, 3))
 
-    menu_tabs_custom = ft.Row([btn_agenda, btn_historial, btn_finanzas], alignment=ft.MainAxisAlignment.CENTER, wrap=True)
+    # Acomodamos los 4 botones
+    menu_tabs_custom = ft.Row([btn_agenda, btn_historial, btn_finanzas, btn_nueva], alignment=ft.MainAxisAlignment.CENTER, wrap=True)
 
     pantalla_admin = ft.Column([
         menu_tabs_custom, ft.Divider(color=ft.Colors.WHITE10),
-        vista_agenda, vista_historial, vista_finanzas
+        vista_agenda, vista_historial, vista_finanzas, vista_nueva
     ], visible=False)
 
     page.add(pantalla_login, pantalla_admin)
