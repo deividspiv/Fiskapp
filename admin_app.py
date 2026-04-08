@@ -1,5 +1,5 @@
 import flet as ft
-import os
+import os 
 import datetime
 from supa_config import obtener_citas, marcar_asistencia
 
