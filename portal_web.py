@@ -48,7 +48,6 @@ def main(page: ft.Page):
 
         try:
             todas = obtener_citas()
-            # Filtramos las del usuario que ya fueron marcadas como "asistio = True"
             citas_aprobadas = [c for c in todas if str(c.get('telefono')) == str(whatsapp) and c.get('asistio') == True]
             conteo = len(citas_aprobadas)
             
@@ -81,7 +80,6 @@ def main(page: ft.Page):
         btn_verificar.text = "Verificar Mis Sellos"
         page.update()
 
-    # ¡ERROR CORREGIDO AQUÍ! Cambiamos prefix_text por hint_text
     input_wa_sellitos = ft.TextField(
         label="Tu WhatsApp", 
         hint_text="Ej: 777...", 
@@ -110,7 +108,19 @@ def main(page: ft.Page):
             grid_sellos,
             mensaje_lealtad
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
-        padding=20, border_radius=25, bgcolor=CARD_COLOR, width=380
+        padding=20, border_radius=25, bgcolor=CARD_COLOR, width=380,
+        visible=False # <--- Oculto por defecto
+    )
+
+    def toggle_lealtad(e):
+        tarjeta_lealtad.visible = not tarjeta_lealtad.visible
+        btn_toggle_lealtad.text = "Ocultar mis sellitos 🙈" if tarjeta_lealtad.visible else "🎁 Ver mis Sellitos de Lealtad"
+        page.update()
+
+    btn_toggle_lealtad = ft.TextButton(
+        "🎁 Ver mis Sellitos de Lealtad", 
+        style=ft.ButtonStyle(color=ACCENT_COLOR), 
+        on_click=toggle_lealtad
     )
 
     # --- LÓGICA DE AGENDAR CITA ---
@@ -352,11 +362,9 @@ def main(page: ft.Page):
         ft.Container(height=10),
         header_logo, 
         ft.Text("FISI-K CENTER", size=22, weight="bold", color=TEXT_WHITE),
+        ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
         
-        # Tarjeta de Lealtad
-        tarjeta_lealtad,
-        
-        ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+        # --- SECCIÓN PRIORITARIA: AGENDAR ---
         ft.Text("¿QUIERES AGENDAR NUEVA CITA?", size=14, color=ft.Colors.WHITE54, weight="bold"),
         
         ft.ElevatedButton(
@@ -384,6 +392,12 @@ def main(page: ft.Page):
         
         ft.Container(height=20),
         btn_confirmar,
+
+        # --- SECCIÓN SECUNDARIA: LEALTAD (AL FINAL) ---
+        ft.Divider(height=30, color=CARD_COLOR),
+        btn_toggle_lealtad,
+        tarjeta_lealtad,
+        
         ft.Container(height=50) 
     )
 
