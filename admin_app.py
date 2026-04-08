@@ -75,7 +75,7 @@ def main(page: ft.Page):
         ya_asistio = cita.get('asistio', False)
         btn_wa = ft.IconButton(icon=ft.Icons.CHAT, icon_color=ft.Colors.GREEN_400, on_click=lambda e: page.launch_url(f"https://wa.me/52{cita.get('cliente_telefono')}?text=Hola {cita.get('cliente_nombre')}, te escribimos de Fisi-K Center."))
         btn_asistencia = ft.ElevatedButton(
-            content=ft.Text("Aprobado ✅" if ya_asistio else "Dar Sellito", weight="bold"), 
+            content=ft.Text("Aprobado ✅" if ya_asistio else "Aprobar Cita", weight="bold"), 
             bgcolor=ft.Colors.GREEN_700 if ya_asistio else ACCENT_COLOR, 
             color=TEXT_WHITE if ya_asistio else BG_COLOR, 
             disabled=ya_asistio, 
