@@ -50,7 +50,7 @@ def main(page: ft.Page):
         ft.Container(height=20), input_pin, texto_error, btn_entrar
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=True)
 
-    # --- 2. PESTAÑAS DEL PANEL ---
+    # --- 2. VISTAS DEL PANEL ---
     lista_agenda_ui = ft.Column(spacing=15)
     lista_historial_ui = ft.Column(spacing=15)
     texto_fecha_ui = ft.Text(f"AGENDA: {fecha_consulta}", size=16, weight="bold", color=ACCENT_COLOR)
@@ -139,7 +139,7 @@ def main(page: ft.Page):
             texto_ganancias.value = "Error"
         page.update()
 
-    # --- VISTAS DE PESTAÑAS ---
+    # --- NAVEGACIÓN Y MENÚ PERSONALIZADO (BLINDADO) ---
     def cambiar_fecha_admin(e):
         nonlocal fecha_consulta
         if e.control.value:
@@ -175,29 +175,36 @@ def main(page: ft.Page):
         )
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
-    def cambiar_tab(e):
-        idx = e.control.selected_index
-        vista_agenda.visible = (idx == 0)
-        vista_historial.visible = (idx == 1)
-        vista_finanzas.visible = (idx == 2)
-        if idx == 0: cargar_agenda()
-        if idx == 1: cargar_historial()
-        if idx == 2: cargar_finanzas()
+    def navegar_tab(e, indice):
+        # Mostrar vista correspondiente
+        vista_agenda.visible = (indice == 0)
+        vista_historial.visible = (indice == 1)
+        vista_finanzas.visible = (indice == 2)
+        
+        # Pintar botón activo
+        btn_agenda.bgcolor = ACCENT_COLOR if indice == 0 else CARD_COLOR
+        btn_historial.bgcolor = ACCENT_COLOR if indice == 1 else CARD_COLOR
+        btn_finanzas.bgcolor = ACCENT_COLOR if indice == 2 else CARD_COLOR
+        
+        btn_agenda.color = BG_COLOR if indice == 0 else TEXT_WHITE
+        btn_historial.color = BG_COLOR if indice == 1 else TEXT_WHITE
+        btn_finanzas.color = BG_COLOR if indice == 2 else TEXT_WHITE
+        
+        # Cargar datos
+        if indice == 0: cargar_agenda()
+        if indice == 1: cargar_historial()
+        if indice == 2: cargar_finanzas()
         page.update()
 
-    # ¡ERROR CORREGIDO AQUÍ! Usamos tab_content en lugar de text
-    tabs_menu = ft.Tabs(
-        selected_index=0, animation_duration=300,
-        tabs=[
-            ft.Tab(tab_content=ft.Text("📅 Agenda", weight="bold")),
-            ft.Tab(tab_content=ft.Text("📚 Historial", weight="bold")),
-            ft.Tab(tab_content=ft.Text("📈 Finanzas", weight="bold")),
-        ],
-        on_change=cambiar_tab
-    )
+    # Botones que simulan las pestañas
+    btn_agenda = ft.ElevatedButton(content=ft.Text("📅 Agenda", weight="bold"), bgcolor=ACCENT_COLOR, color=BG_COLOR, on_click=lambda e: navegar_tab(e, 0))
+    btn_historial = ft.ElevatedButton(content=ft.Text("📚 Historial", weight="bold"), bgcolor=CARD_COLOR, color=TEXT_WHITE, on_click=lambda e: navegar_tab(e, 1))
+    btn_finanzas = ft.ElevatedButton(content=ft.Text("📈 Finanzas", weight="bold"), bgcolor=CARD_COLOR, color=TEXT_WHITE, on_click=lambda e: navegar_tab(e, 2))
+
+    menu_tabs_custom = ft.Row([btn_agenda, btn_historial, btn_finanzas], alignment=ft.MainAxisAlignment.CENTER, wrap=True)
 
     pantalla_admin = ft.Column([
-        tabs_menu, ft.Divider(color=ft.Colors.TRANSPARENT),
+        menu_tabs_custom, ft.Divider(color=ft.Colors.WHITE10),
         vista_agenda, vista_historial, vista_finanzas
     ], visible=False)
 
