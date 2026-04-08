@@ -48,21 +48,21 @@ def main(page: ft.Page):
 
         try:
             todas = obtener_citas()
-            citas_aprobadas = [c for c in todas if str(c.get('telefono')) == str(whatsapp) and c.get('asistio') == True]
+            # ¡ERROR CORREGIDO! Buscamos en 'cliente_telefono' en vez de 'telefono'
+            citas_aprobadas = [c for c in todas if str(c.get('cliente_telefono')) == str(whatsapp) and c.get('asistio') == True]
             conteo = len(citas_aprobadas)
             
             grid_sellos.controls.clear()
             for i in range(1, 7):
                 esta_lleno = i <= conteo
-                # ¡ERROR CORREGIDO! Centramos el ícono con un Row a prueba de fallos
+                
+                # ¡NUEVO DISEÑO! Ponemos tu foto fizik.png cuando esté lleno
+                icono_sello = ft.Image(src=header_logo_src, width=30, height=30, fit="contain") if esta_lleno else ft.Icon(ft.Icons.CIRCLE_OUTLINED, color=ft.Colors.WHITE24, size=24)
+
                 grid_sellos.controls.append(
                     ft.Container(
                         content=ft.Row(
-                            [ft.Icon(
-                                ft.Icons.FAVORITE if esta_lleno else ft.Icons.FAVORITE_BORDER,
-                                color=ACCENT_COLOR if esta_lleno else ft.Colors.WHITE24,
-                                size=24
-                            )],
+                            [icono_sello],
                             alignment=ft.MainAxisAlignment.CENTER,
                             vertical_alignment=ft.CrossAxisAlignment.CENTER
                         ),
