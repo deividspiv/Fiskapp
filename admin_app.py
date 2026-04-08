@@ -96,8 +96,8 @@ def main(page: ft.Page):
             for cita in citas_hoy_validas:
                 # --- LECTURA SEGURA: Pedimos los datos sin provocar colapsos ---
                 ya_asistio = cita.get('asistio', False)
-                telefono_seguro = cita.get('telefono', 'Sin número')
-                nombre_seguro = cita.get('nombre', 'Cliente Anónimo')
+                telefono_seguro = cita.get('cliente_telefono', 'Sin número')
+                nombre_seguro = cita.get('cliente_nombre', 'Cliente Anónimo')
                 hora_segura = cita.get('hora', 'Sin hora')
                 servicio_seguro = cita.get('servicio', 'Servicio no especificado')
                 cita_id = cita.get('id')
