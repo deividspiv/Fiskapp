@@ -124,7 +124,7 @@ def main(page: ft.Page):
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
     # ==========================================
-    # PASO 2: DISEÑO "BADASS" PREMIUM (CORREGIDO)
+    # PASO 2: DISEÑO "BADASS" PREMIUM 
     # ==========================================
     btn_siguiente_2 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: ir_a_paso3())
     
@@ -173,7 +173,8 @@ def main(page: ft.Page):
                 border_radius=15,
                 border=ft.border.all(1, ft.Colors.WHITE10),
                 on_click=lambda ev, s=servicio_db: seleccionar_servicio(ev, s),
-                animate=ft.animation.Animation(300, "easeOut") 
+                # ¡CORRECCIÓN AQUÍ! Forma segura de animar en cualquier versión de Flet
+                animate=300 
             )
             grid_servicios.controls.append(tarjeta)
         page.update()
@@ -196,7 +197,6 @@ def main(page: ft.Page):
         ft.Container(height=10),
         row_categorias, 
         ft.Container(height=15),
-        # ¡ERROR CORREGIDO AQUÍ! Se eliminó el alignment problemático
         ft.Container(
             content=grid_servicios, 
             padding=10, 
