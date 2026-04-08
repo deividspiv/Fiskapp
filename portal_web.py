@@ -1,6 +1,8 @@
 import flet as ft
 import os
 import datetime 
+# ¡IMPORTANTE! Importamos random para el efecto de neón al azar
+import random 
 from supa_config import guardar_cita, obtener_citas, borrar_cita 
 
 BG_COLOR = "#2D3E6B"        
@@ -8,6 +10,16 @@ CARD_COLOR = "#0C1533"
 ACCENT_COLOR = "#D200AC"    
 MUTED_COLOR = "#1D284C"     
 TEXT_WHITE = ft.Colors.WHITE
+
+# ¡NUEVA! Paleta de colores RGB de alta intensidad
+RGB_NEON_COLORS = [
+    ft.Colors.RED_ACCENT,
+    ft.Colors.GREEN_ACCENT,
+    ft.Colors.BLUE_ACCENT,
+    ft.Colors.CYAN_ACCENT,
+    ft.Colors.MAGENTA_ACCENT,
+    ft.Colors.YELLOW_ACCENT
+]
 
 servicios_disponibles = {
     "💆‍♀️ Masajes": {
@@ -124,23 +136,29 @@ def main(page: ft.Page):
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
     # ==========================================
-    # PASO 2: DISEÑO "BADASS" PREMIUM 
+    # PASO 2: DISEÑO "BADASS" NEON RGB DINÁMICO
     # ==========================================
     btn_siguiente_2 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: ir_a_paso3())
     
     row_categorias = ft.Row(alignment=ft.MainAxisAlignment.CENTER, spacing=10, wrap=True, width=380)
+    
+    # ¡NUEVA! Cuadrícula de 3 columnas perfecta
     grid_servicios = ft.Row(wrap=True, alignment=ft.MainAxisAlignment.CENTER, spacing=15, run_spacing=15, width=380)
     grid_servicios.controls.append(ft.Text("👈 Toca una categoría arriba", italic=True, color=ft.Colors.WHITE54))
 
     def seleccionar_servicio(e, servicio_completo):
         nonlocal servicio_val
         servicio_val = servicio_completo
+        
+        # ¡EFECTO NEON RGB GEMINI!
         for card in grid_servicios.controls:
             if isinstance(card, ft.Container):
                 if card.data == servicio_completo:
+                    # Seleccionamos un color neón al azar de la paleta RGB
+                    color_neon = random.choice(RGB_NEON_COLORS)
                     card.bgcolor = CARD_COLOR
-                    card.border = ft.border.all(2, ACCENT_COLOR)
-                    card.shadow = ft.BoxShadow(spread_radius=1, blur_radius=15, color=ACCENT_COLOR) 
+                    card.border = ft.border.all(2, color_neon)
+                    card.shadow = ft.BoxShadow(spread_radius=1, blur_radius=15, color=color_neon) # Brillo Neón dinámico
                 else:
                     card.bgcolor = MUTED_COLOR
                     card.border = ft.border.all(1, ft.Colors.WHITE10)
@@ -164,16 +182,16 @@ def main(page: ft.Page):
             tarjeta = ft.Container(
                 data=servicio_db,
                 content=ft.Column([
-                    ft.Text(sub, size=13, weight="bold", color=TEXT_WHITE, text_align=ft.TextAlign.CENTER),
-                    ft.Text(f"${precio} MXN", size=12, color=ACCENT_COLOR, weight="bold")
+                    ft.Text(sub, size=12, weight="bold", color=TEXT_WHITE, text_align=ft.TextAlign.CENTER, expand=True),
+                    ft.Text(f"${precio} MXN", size=11, color=ACCENT_COLOR, weight="bold", text_align=ft.TextAlign.CENTER)
                 ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
-                width=175, 
-                height=80,
+                # ¡AJUSTES DE 3 COLUMNAS! Reducimos el ancho y aumentamos la altura
+                width=116, # Ancho recalculado para que quepan 3 + márgenes
+                height=110, # Altura aumentada para mejor orden
                 bgcolor=MUTED_COLOR,
                 border_radius=15,
                 border=ft.border.all(1, ft.Colors.WHITE10),
                 on_click=lambda ev, s=servicio_db: seleccionar_servicio(ev, s),
-                # ¡CORRECCIÓN AQUÍ! Forma segura de animar en cualquier versión de Flet
                 animate=300 
             )
             grid_servicios.controls.append(tarjeta)
@@ -198,9 +216,10 @@ def main(page: ft.Page):
         row_categorias, 
         ft.Container(height=15),
         ft.Container(
-            content=grid_servicios, 
+            content=grid_servicios, # Cuadrícula de tarjetas neón
             padding=10, 
-            width=380
+            width=380,
+            alignment=ft.alignment.center # Centramos toda la cuadrícula
         ),
         ft.Container(height=20),
         ft.Row([ft.TextButton("⬅️ Atrás", on_click=lambda _: cambiar_vista(vista_paso1), style=ft.ButtonStyle(color=ft.Colors.WHITE54)), btn_siguiente_2], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, width=380)
