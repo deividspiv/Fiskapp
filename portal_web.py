@@ -98,7 +98,6 @@ def main(page: ft.Page):
     def seleccionar_hora(e, hora):
         nonlocal hora_val
         hora_val = hora
-        # ¡CORRECCIÓN! Usamos .data en lugar de .text para que sea 100% seguro
         for btn in contenedor_horarios.controls:
             if btn.data == hora:
                 btn.bgcolor = ACCENT_COLOR
@@ -173,7 +172,10 @@ def main(page: ft.Page):
     # VISTA PASO 2: SERVICIOS
     # ==========================================
     btn_siguiente_2 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: ir_a_paso3())
-    col_categorias = ft.Column(spacing=10, width=150)
+    
+    # ¡AQUÍ ESTÁ EL CAMBIO! Espaciado aumentado de 10 a 25
+    col_categorias = ft.Column(spacing=25, width=150) 
+    
     col_subservicios = ft.Column([ft.Text("👈 Toca una categoría", italic=True, color=ft.Colors.WHITE54, size=13)], width=180, scroll=ft.ScrollMode.ADAPTIVE, height=220)
 
     def seleccionar_servicio(e, servicio_completo):
@@ -240,7 +242,7 @@ def main(page: ft.Page):
             page.show_dialog(ft.SnackBar(ft.Text("Llena tus datos"), bgcolor=ACCENT_COLOR, open=True))
             return
         btn_confirmar_final.disabled = True
-        btn_confirmar_final.content = ft.Text("Guardando...", weight="bold") # Corrección content
+        btn_confirmar_final.content = ft.Text("Guardando...", weight="bold")
         page.update()
         try:
             guardar_cita(fecha_val, hora_val, input_nombre.value, input_telefono.value, servicio_val)
@@ -291,7 +293,7 @@ def main(page: ft.Page):
         if not tel:
             return
         lista_citas_cancelar.controls.clear()
-        btn_buscar_citas.content = ft.Text("Buscando...", weight="bold") # Corrección content
+        btn_buscar_citas.content = ft.Text("Buscando...", weight="bold")
         page.update()
         try:
             todas = obtener_citas()
@@ -355,7 +357,7 @@ def main(page: ft.Page):
         if not whatsapp:
             return
         btn_verificar_lealtad.disabled = True
-        btn_verificar_lealtad.content = ft.Text("Buscando...", weight="bold") # Corrección content
+        btn_verificar_lealtad.content = ft.Text("Buscando...", weight="bold") 
         page.update()
         try:
             todas = obtener_citas()
