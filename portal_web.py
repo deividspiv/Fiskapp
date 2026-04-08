@@ -35,11 +35,11 @@ def main(page: ft.Page):
 
     header_logo = ft.Image(src=header_logo_src, width=120, height=120, fit="contain", visible=True)
     
-    # --- LÓGICA DE SELLITOS (LEALTAD) ---
-    def consultar_sellitos(e):
-        whatsapp = input_wa_sellitos.value
+    # --- LÓGICA DEL PLAN DE LEALTAD ---
+    def consultar_lealtad(e):
+        whatsapp = input_wa_lealtad.value
         if not whatsapp:
-            page.show_dialog(ft.SnackBar(ft.Text("Pon tu WhatsApp para ver tus premios"), bgcolor=ACCENT_COLOR, open=True))
+            page.show_dialog(ft.SnackBar(ft.Text("Pon tu WhatsApp para ver tu progreso"), bgcolor=ACCENT_COLOR, open=True))
             return
         
         btn_verificar.disabled = True
@@ -48,7 +48,6 @@ def main(page: ft.Page):
 
         try:
             todas = obtener_citas()
-            # ¡ERROR CORREGIDO! Buscamos en 'cliente_telefono' en vez de 'telefono'
             citas_aprobadas = [c for c in todas if str(c.get('cliente_telefono')) == str(whatsapp) and c.get('asistio') == True]
             conteo = len(citas_aprobadas)
             
@@ -56,8 +55,17 @@ def main(page: ft.Page):
             for i in range(1, 7):
                 esta_lleno = i <= conteo
                 
-                # ¡NUEVO DISEÑO! Ponemos tu foto fizik.png cuando esté lleno
-                icono_sello = ft.Image(src=header_logo_src, width=30, height=30, fit="contain") if esta_lleno else ft.Icon(ft.Icons.CIRCLE_OUTLINED, color=ft.Colors.WHITE24, size=24)
+                # ¡NUEVO DISEÑO! Logo circular perfecto
+                if esta_lleno:
+                    icono_sello = ft.Image(
+                        src=header_logo_src, 
+                        width=30, 
+                        height=30, 
+                        fit="cover", 
+                        border_radius=15 # Esto hace el círculo
+                    )
+                else:
+                    icono_sello = ft.Icon(ft.Icons.CIRCLE_OUTLINED, color=ft.Colors.WHITE24, size=24)
 
                 grid_sellos.controls.append(
                     ft.Container(
@@ -81,10 +89,10 @@ def main(page: ft.Page):
             page.show_dialog(ft.SnackBar(ft.Text(f"Error: {ex}"), bgcolor=ft.Colors.RED, open=True))
         
         btn_verificar.disabled = False
-        btn_verificar.text = "Verificar Mis Sellos"
+        btn_verificar.text = "Verificar Mi Plan"
         page.update()
 
-    input_wa_sellitos = ft.TextField(
+    input_wa_lealtad = ft.TextField(
         label="Tu WhatsApp", 
         hint_text="Ej: 777...", 
         width=250, 
@@ -94,10 +102,10 @@ def main(page: ft.Page):
         color=TEXT_WHITE
     )
     btn_verificar = ft.ElevatedButton(
-        "Verificar Mis Sellos", 
+        "Verificar Mi Plan", 
         bgcolor=ACCENT_COLOR, 
         color=TEXT_WHITE, 
-        on_click=consultar_sellitos,
+        on_click=consultar_lealtad,
         style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=15))
     )
     grid_sellos = ft.Row(wrap=True, alignment=ft.MainAxisAlignment.CENTER, visible=False)
@@ -107,7 +115,7 @@ def main(page: ft.Page):
         content=ft.Column([
             ft.Text("PROGRAMA DE LEALTAD", size=14, weight="bold", color=ACCENT_COLOR),
             ft.Text("6to Masaje GRATIS", size=18, weight="bold", color=TEXT_WHITE),
-            input_wa_sellitos,
+            input_wa_lealtad,
             btn_verificar,
             grid_sellos,
             mensaje_lealtad
@@ -118,11 +126,11 @@ def main(page: ft.Page):
 
     def toggle_lealtad(e):
         tarjeta_lealtad.visible = not tarjeta_lealtad.visible
-        btn_toggle_lealtad.text = "Ocultar mis sellitos 🙈" if tarjeta_lealtad.visible else "🎁 Ver mis Sellitos de Lealtad"
+        btn_toggle_lealtad.text = "Ocultar mi plan 🙈" if tarjeta_lealtad.visible else "🎁 Ver mi Plan de Lealtad"
         page.update()
 
     btn_toggle_lealtad = ft.TextButton(
-        "🎁 Ver mis Sellitos de Lealtad", 
+        "🎁 Ver mi Plan de Lealtad", 
         style=ft.ButtonStyle(color=ACCENT_COLOR), 
         on_click=toggle_lealtad
     )
@@ -397,7 +405,7 @@ def main(page: ft.Page):
         ft.Container(height=20),
         btn_confirmar,
 
-        # --- SECCIÓN SECUNDARIA: LEALTAD (AL FINAL) ---
+        # --- SECCIÓN SECUNDARIA: PLAN DE LEALTAD (AL FINAL) ---
         ft.Divider(height=30, color=CARD_COLOR),
         btn_toggle_lealtad,
         tarjeta_lealtad,
