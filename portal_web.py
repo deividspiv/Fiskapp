@@ -13,10 +13,10 @@ servicios_disponibles = {
     "💆‍♀️ Masajes": {
         "Relajantes": 500, "Descontracturantes": 600, "Deportivo": 700, "Holístico": 650, "Aromaterapia": 550
     },
-    "🧖‍♀️ Limpiezas faciales": {
+    "🧖‍♀️ Faciales": {
         "Limpieza profunda": 400, "Hidratante": 450, "Anti-acné": 500, "Anti-edad": 550
     },
-    "✨ Trat. Corporales": {
+    "✨ Corporales": {
         "Cavitación": 800, "Radiofrecuencia": 750, "PRP (plasma)": 1200, "Lipoenzimas": 1500
     }
 }
@@ -49,8 +49,12 @@ def main(page: ft.Page):
         texto_fecha_sel.value = "Ninguna fecha seleccionada"
         contenedor_horarios.controls.clear()
         btn_siguiente_1.disabled = btn_siguiente_2.disabled = True
-        col_subservicios.controls.clear()
-        col_subservicios.controls.append(ft.Text("👈 Toca una categoría", italic=True, color=ft.Colors.WHITE54, size=13))
+        grid_servicios.controls.clear()
+        grid_servicios.controls.append(ft.Text("👈 Toca una categoría arriba", italic=True, color=ft.Colors.WHITE54))
+        # Reiniciar botones de categoría
+        for btn in row_categorias.controls:
+            btn.bgcolor = CARD_COLOR
+            btn.color = TEXT_WHITE
         input_nombre.value = input_telefono.value = ""
         cambiar_vista(vista_inicio)
 
@@ -120,51 +124,95 @@ def main(page: ft.Page):
         ft.Row([ft.TextButton("⬅️ Menú", on_click=reiniciar_proceso, style=ft.ButtonStyle(color=ft.Colors.WHITE54)), btn_siguiente_1], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, width=380)
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
+    # ==========================================
+    # NUEVO PASO 2: DISEÑO "BADASS" PREMIUM
+    # ==========================================
     btn_siguiente_2 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: ir_a_paso3())
-    col_categorias = ft.Column(spacing=25, width=150) 
-    col_subservicios = ft.Column([ft.Text("👈 Toca una categoría", italic=True, color=ft.Colors.WHITE54, size=13)], width=180, scroll=ft.ScrollMode.ADAPTIVE, height=220)
+    
+    row_categorias = ft.Row(alignment=ft.MainAxisAlignment.CENTER, spacing=10, wrap=True, width=380)
+    grid_servicios = ft.Row(wrap=True, alignment=ft.MainAxisAlignment.CENTER, spacing=15, run_spacing=15, width=380)
+    grid_servicios.controls.append(ft.Text("👈 Toca una categoría arriba", italic=True, color=ft.Colors.WHITE54))
 
     def seleccionar_servicio(e, servicio_completo):
         nonlocal servicio_val
         servicio_val = servicio_completo
-        for btn in col_subservicios.controls:
-            if isinstance(btn, ft.ElevatedButton):
-                if btn.data == servicio_completo:
-                    btn.bgcolor = ACCENT_COLOR
+        # Efecto Neón y Elevación en la tarjeta seleccionada
+        for card in grid_servicios.controls:
+            if isinstance(card, ft.Container):
+                if card.data == servicio_completo:
+                    card.bgcolor = CARD_COLOR
+                    card.border = ft.border.all(2, ACCENT_COLOR)
+                    card.shadow = ft.BoxShadow(spread_radius=1, blur_radius=15, color=ACCENT_COLOR) # Brillo Neón
                 else:
-                    btn.bgcolor = MUTED_COLOR
+                    card.bgcolor = MUTED_COLOR
+                    card.border = ft.border.all(1, ft.Colors.WHITE10)
+                    card.shadow = None
         btn_siguiente_2.disabled = False
         page.update()
 
-    def mostrar_subservicios(categoria):
-        col_subservicios.controls.clear()
-        col_subservicios.controls.append(ft.Text(categoria, weight="bold", size=14, color=TEXT_WHITE))
+    def mostrar_subservicios(e, categoria):
+        # Resaltar el botón de categoría superior
+        for btn in row_categorias.controls:
+            if btn.data == categoria:
+                btn.bgcolor = ACCENT_COLOR
+                btn.color = BG_COLOR
+            else:
+                btn.bgcolor = CARD_COLOR
+                btn.color = TEXT_WHITE
+
+        grid_servicios.controls.clear()
+
+        # Construir la cuadrícula de tarjetas elegantes
         for sub, precio in servicios_disponibles[categoria].items():
             servicio_db = f"{categoria.split(' ')[1]} - {sub} (${precio})"
-            col_subservicios.controls.append(
-                ft.ElevatedButton(
-                    data=servicio_db,
-                    content=ft.Column([
-                        ft.Text(sub, size=12, color=TEXT_WHITE, weight="bold"),
-                        ft.Text(f"${precio} MXN", size=11, color=ACCENT_COLOR)
-                    ], spacing=2),
-                    width=180, bgcolor=MUTED_COLOR, style=ft.ButtonStyle(padding=10, shape=ft.RoundedRectangleBorder(radius=12)),
-                    on_click=lambda e, s=servicio_db: seleccionar_servicio(e, s)
-                )
+            tarjeta = ft.Container(
+                data=servicio_db,
+                content=ft.Column([
+                    ft.Text(sub, size=13, weight="bold", color=TEXT_WHITE, text_align=ft.TextAlign.CENTER),
+                    ft.Text(f"${precio} MXN", size=12, color=ACCENT_COLOR, weight="bold")
+                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                width=175, 
+                height=80,
+                bgcolor=MUTED_COLOR,
+                border_radius=15,
+                border=ft.border.all(1, ft.Colors.WHITE10),
+                on_click=lambda ev, s=servicio_db: seleccionar_servicio(ev, s),
+                animate=ft.animation.Animation(300, "easeOut") # Animación suave al tocar
             )
+            grid_servicios.controls.append(tarjeta)
         page.update()
 
+    # Llenar el menú horizontal de categorías
     for cat in servicios_disponibles.keys():
-        col_categorias.controls.append(ft.ElevatedButton(content=ft.Text(cat, size=13, text_align=ft.TextAlign.CENTER, color=TEXT_WHITE), width=150, bgcolor=CARD_COLOR, style=ft.ButtonStyle(padding=15, shape=ft.RoundedRectangleBorder(radius=10)), on_click=lambda e, c=cat: mostrar_subservicios(c)))
+        row_categorias.controls.append(
+            ft.ElevatedButton(
+                content=ft.Text(cat, size=12, weight="bold"),
+                data=cat,
+                bgcolor=CARD_COLOR,
+                color=TEXT_WHITE,
+                style=ft.ButtonStyle(padding=15, shape=ft.RoundedRectangleBorder(radius=12)),
+                on_click=lambda e, c=cat: mostrar_subservicios(e, c)
+            )
+        )
 
     vista_paso2 = ft.Column([
         ft.Text("PASO 2 DE 3", size=12, color=ACCENT_COLOR, weight="bold"),
         ft.Text("¿Qué servicio buscas?", size=20, weight="bold"),
-        ft.Container(content=ft.Row([col_categorias, ft.VerticalDivider(width=1, color=BG_COLOR), col_subservicios], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.START), padding=15, border_radius=20, bgcolor=CARD_COLOR, width=380),
+        ft.Container(height=10),
+        row_categorias, # Menú ancho
+        ft.Container(height=15),
+        ft.Container(
+            content=grid_servicios, # Cuadrícula de tarjetas
+            padding=10, width=380, alignment=ft.alignment.center
+        ),
         ft.Container(height=20),
         ft.Row([ft.TextButton("⬅️ Atrás", on_click=lambda _: cambiar_vista(vista_paso1), style=ft.ButtonStyle(color=ft.Colors.WHITE54)), btn_siguiente_2], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, width=380)
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
+
+    # ==========================================
+    # VISTA PASO 3: CONFIRMACIÓN Y DATOS
+    # ==========================================
     texto_resumen_final = ft.Text("", size=16, color=TEXT_WHITE, weight="bold", text_align=ft.TextAlign.CENTER)
     input_nombre = ft.TextField(label="Tu Nombre", icon=ft.Icons.PERSON, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
     input_telefono = ft.TextField(label="Tu WhatsApp", icon=ft.Icons.PHONE, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
@@ -247,9 +295,6 @@ def main(page: ft.Page):
     grid_sellos = ft.Row(wrap=True, alignment=ft.MainAxisAlignment.CENTER, visible=False)
     mensaje_lealtad = ft.Text("", weight="bold", size=16, color=TEXT_WHITE, text_align=ft.TextAlign.CENTER, visible=False)
 
-    # ==========================================
-    # ¡NUEVA LÓGICA DE CICLO INFINITO!
-    # ==========================================
     def consultar_lealtad(e):
         whatsapp = input_wa_lealtad.value
         if not whatsapp: return
@@ -259,11 +304,7 @@ def main(page: ft.Page):
         try:
             citas_aprobadas = [c for c in obtener_citas() if str(c.get('cliente_telefono')) == str(whatsapp) and c.get('asistio') == True]
             conteo_historico = len(citas_aprobadas)
-            
-            # Magia matemática: el residuo de dividir entre 6
             conteo = conteo_historico % 6
-            
-            # Si el residuo es 0 pero ya tiene citas, significa que acaba de llenar la tarjeta de 6
             if conteo == 0 and conteo_historico > 0:
                 conteo = 6
 
