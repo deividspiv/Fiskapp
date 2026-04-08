@@ -66,7 +66,6 @@ def main(page: ft.Page):
         cambiar_vista(vista_inicio)
 
     vista_inicio = ft.Column([
-        # ¡ERROR CORREGIDO! Ya no hay tracking=1
         ft.Text("¿QUÉ DESEAS HACER?", size=14, weight="bold", color=ft.Colors.WHITE54),
         ft.Container(height=10),
         ft.ElevatedButton(
@@ -99,7 +98,6 @@ def main(page: ft.Page):
     def seleccionar_hora(e, hora):
         nonlocal hora_val
         hora_val = hora
-        # Pintar el botón seleccionado
         for btn in contenedor_horarios.controls:
             if btn.text == hora:
                 btn.bgcolor = ACCENT_COLOR
@@ -180,7 +178,6 @@ def main(page: ft.Page):
     def seleccionar_servicio(e, servicio_completo):
         nonlocal servicio_val
         servicio_val = servicio_completo
-        # Pintar botón seleccionado
         for btn in col_subservicios.controls:
             if isinstance(btn, ft.ElevatedButton):
                 if btn.content.controls[1].value == servicio_completo.split(" - ")[1]:
@@ -229,7 +226,8 @@ def main(page: ft.Page):
     # ==========================================
     # VISTA PASO 3: CONFIRMACIÓN Y DATOS
     # ==========================================
-    texto_resumen_final = ft.Text("", size=16, color=TEXT_WHITE, weight="bold")
+    # ¡ERROR CORREGIDO AQUÍ! Removido el "alignment" del Container, se usa text_align en el Text
+    texto_resumen_final = ft.Text("", size=16, color=TEXT_WHITE, weight="bold", text_align=ft.TextAlign.CENTER)
     input_nombre = ft.TextField(label="Tu Nombre", icon=ft.Icons.PERSON, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
     input_telefono = ft.TextField(label="Tu WhatsApp", icon=ft.Icons.PHONE, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
     
@@ -258,7 +256,8 @@ def main(page: ft.Page):
     vista_paso3 = ft.Column([
         ft.Text("PASO 3 DE 3", size=12, color=ACCENT_COLOR, weight="bold"),
         ft.Text("Confirma tus datos", size=20, weight="bold"),
-        ft.Container(content=texto_resumen_final, bgcolor=MUTED_COLOR, padding=15, border_radius=10, width=350, alignment=ft.alignment.center),
+        # Contenedor limpio y seguro
+        ft.Container(content=texto_resumen_final, bgcolor=MUTED_COLOR, padding=15, border_radius=10, width=350),
         ft.Divider(color=CARD_COLOR),
         input_nombre,
         input_telefono,
