@@ -98,8 +98,9 @@ def main(page: ft.Page):
     def seleccionar_hora(e, hora):
         nonlocal hora_val
         hora_val = hora
+        # ¡CORRECCIÓN! Usamos .data en lugar de .text para que sea 100% seguro
         for btn in contenedor_horarios.controls:
-            if btn.text == hora:
+            if btn.data == hora:
                 btn.bgcolor = ACCENT_COLOR
                 btn.color = TEXT_WHITE
                 btn.icon_color = TEXT_WHITE
@@ -129,11 +130,11 @@ def main(page: ft.Page):
 
             if (h in horas_ocupadas) or ya_paso:
                 contenedor_horarios.controls.append(
-                    ft.ElevatedButton(h, icon=ft.Icons.LOCK, width=115, disabled=True, color=ft.Colors.WHITE30, bgcolor=MUTED_COLOR, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)))
+                    ft.ElevatedButton(h, data=h, icon=ft.Icons.LOCK, width=115, disabled=True, color=ft.Colors.WHITE30, bgcolor=MUTED_COLOR, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)))
                 )
             else:
                 contenedor_horarios.controls.append(
-                    ft.ElevatedButton(h, icon=ft.Icons.RADIO_BUTTON_UNCHECKED, icon_color=ACCENT_COLOR, color=TEXT_WHITE, bgcolor=CARD_COLOR, width=115, on_click=lambda e, hora_btn=h: seleccionar_hora(e, hora_btn), style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)))
+                    ft.ElevatedButton(h, data=h, icon=ft.Icons.RADIO_BUTTON_UNCHECKED, icon_color=ACCENT_COLOR, color=TEXT_WHITE, bgcolor=CARD_COLOR, width=115, on_click=lambda e, hora_btn=h: seleccionar_hora(e, hora_btn), style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)))
                 )
         page.update()
 
@@ -226,7 +227,6 @@ def main(page: ft.Page):
     # ==========================================
     # VISTA PASO 3: CONFIRMACIÓN Y DATOS
     # ==========================================
-    # ¡ERROR CORREGIDO AQUÍ! Removido el "alignment" del Container, se usa text_align en el Text
     texto_resumen_final = ft.Text("", size=16, color=TEXT_WHITE, weight="bold", text_align=ft.TextAlign.CENTER)
     input_nombre = ft.TextField(label="Tu Nombre", icon=ft.Icons.PERSON, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
     input_telefono = ft.TextField(label="Tu WhatsApp", icon=ft.Icons.PHONE, bgcolor=CARD_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE, border_radius=15)
@@ -240,7 +240,7 @@ def main(page: ft.Page):
             page.show_dialog(ft.SnackBar(ft.Text("Llena tus datos"), bgcolor=ACCENT_COLOR, open=True))
             return
         btn_confirmar_final.disabled = True
-        btn_confirmar_final.text = "Guardando..."
+        btn_confirmar_final.content = ft.Text("Guardando...", weight="bold") # Corrección content
         page.update()
         try:
             guardar_cita(fecha_val, hora_val, input_nombre.value, input_telefono.value, servicio_val)
@@ -248,15 +248,14 @@ def main(page: ft.Page):
         except Exception as ex:
             page.show_dialog(ft.SnackBar(ft.Text(f"Error: {ex}"), bgcolor=ft.Colors.RED, open=True))
         btn_confirmar_final.disabled = False
-        btn_confirmar_final.text = "¡Confirmar Cita!"
+        btn_confirmar_final.content = ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE), ft.Text("¡Confirmar Cita!", weight="bold")])
         page.update()
 
-    btn_confirmar_final = ft.ElevatedButton("¡Confirmar Cita!", icon=ft.Icons.CHECK_CIRCLE, bgcolor=ACCENT_COLOR, color=TEXT_WHITE, style=ft.ButtonStyle(padding=20, shape=ft.RoundedRectangleBorder(radius=15)), on_click=confirmar_reserva)
+    btn_confirmar_final = ft.ElevatedButton(content=ft.Row([ft.Icon(ft.Icons.CHECK_CIRCLE), ft.Text("¡Confirmar Cita!", weight="bold")]), bgcolor=ACCENT_COLOR, color=TEXT_WHITE, style=ft.ButtonStyle(padding=20, shape=ft.RoundedRectangleBorder(radius=15)), on_click=confirmar_reserva)
 
     vista_paso3 = ft.Column([
         ft.Text("PASO 3 DE 3", size=12, color=ACCENT_COLOR, weight="bold"),
         ft.Text("Confirma tus datos", size=20, weight="bold"),
-        # Contenedor limpio y seguro
         ft.Container(content=texto_resumen_final, bgcolor=MUTED_COLOR, padding=15, border_radius=10, width=350),
         ft.Divider(color=CARD_COLOR),
         input_nombre,
@@ -292,7 +291,7 @@ def main(page: ft.Page):
         if not tel:
             return
         lista_citas_cancelar.controls.clear()
-        btn_buscar_citas.text = "Buscando..."
+        btn_buscar_citas.content = ft.Text("Buscando...", weight="bold") # Corrección content
         page.update()
         try:
             todas = obtener_citas()
@@ -326,10 +325,10 @@ def main(page: ft.Page):
         except Exception as ex:
             lista_citas_cancelar.controls.append(ft.Text(f"Error de conexión: {ex}", color=ft.Colors.RED))
         
-        btn_buscar_citas.text = "Buscar mis citas"
+        btn_buscar_citas.content = ft.Text("Buscar mis citas", weight="bold")
         page.update()
 
-    btn_buscar_citas = ft.ElevatedButton("Buscar mis citas", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, on_click=buscar_mis_citas)
+    btn_buscar_citas = ft.ElevatedButton(content=ft.Text("Buscar mis citas", weight="bold"), bgcolor=ACCENT_COLOR, color=TEXT_WHITE, on_click=buscar_mis_citas)
 
     vista_cancelar = ft.Column([
         ft.Text("CANCELAR CITA", size=20, weight="bold"),
@@ -355,7 +354,8 @@ def main(page: ft.Page):
         whatsapp = input_wa_lealtad.value
         if not whatsapp:
             return
-        btn_verificar_lealtad.text = "Buscando..."
+        btn_verificar_lealtad.disabled = True
+        btn_verificar_lealtad.content = ft.Text("Buscando...", weight="bold") # Corrección content
         page.update()
         try:
             todas = obtener_citas()
@@ -380,10 +380,12 @@ def main(page: ft.Page):
             grid_sellos.visible = True
         except Exception as ex:
              page.show_dialog(ft.SnackBar(ft.Text(f"Error: {ex}"), open=True))
-        btn_verificar_lealtad.text = "Verificar Mi Plan"
+        
+        btn_verificar_lealtad.disabled = False
+        btn_verificar_lealtad.content = ft.Text("Verificar Mi Plan", weight="bold")
         page.update()
 
-    btn_verificar_lealtad = ft.ElevatedButton("Verificar Mi Plan", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, on_click=consultar_lealtad)
+    btn_verificar_lealtad = ft.ElevatedButton(content=ft.Text("Verificar Mi Plan", weight="bold"), bgcolor=ACCENT_COLOR, color=TEXT_WHITE, on_click=consultar_lealtad, style=ft.ButtonStyle(padding=15, shape=ft.RoundedRectangleBorder(radius=15)))
 
     vista_lealtad = ft.Column([
         ft.Text("PROGRAMA DE LEALTAD", size=14, weight="bold", color=ACCENT_COLOR),
