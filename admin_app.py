@@ -3,7 +3,7 @@ import os
 import datetime
 from supa_config import obtener_citas, marcar_asistencia
 
-PIN_SECRETO = "Mariana Tinoko"  
+PIN_SECRETO = "2026"  
 BG_COLOR = "#0C1533"
 CARD_COLOR = "#1D284C"
 ACCENT_COLOR = "#89F336" 
