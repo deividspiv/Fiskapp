@@ -66,7 +66,8 @@ def main(page: ft.Page):
         cambiar_vista(vista_inicio)
 
     vista_inicio = ft.Column([
-        ft.Text("¿QUÉ DESEAS HACER?", size=14, weight="bold", color=ft.Colors.WHITE54, tracking=1),
+        # ¡ERROR CORREGIDO! Ya no hay tracking=1
+        ft.Text("¿QUÉ DESEAS HACER?", size=14, weight="bold", color=ft.Colors.WHITE54),
         ft.Container(height=10),
         ft.ElevatedButton(
             "Agendar Nueva Cita", icon=ft.Icons.CALENDAR_MONTH, bgcolor=ACCENT_COLOR, color=TEXT_WHITE,
@@ -163,7 +164,7 @@ def main(page: ft.Page):
         contenedor_horarios,
         ft.Container(height=20),
         ft.Row([
-            ft.TextButton("⬅️ Volver al Menú", on_click=reiniciar_proceso, style=ft.ButtonStyle(color=ft.Colors.WHITE54)),
+            ft.TextButton("⬅️ Menú", on_click=reiniciar_proceso, style=ft.ButtonStyle(color=ft.Colors.WHITE54)),
             btn_siguiente_1
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, width=380)
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
@@ -298,7 +299,6 @@ def main(page: ft.Page):
             todas = obtener_citas()
             ahora_mx = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
             hoy_str = ahora_mx.strftime("%Y-%m-%d")
-            # Filtramos por telefono y citas futuras
             mis_citas = [c for c in todas if str(c.get('cliente_telefono')) == str(tel) and c.get('fecha') >= hoy_str]
 
             if not mis_citas:
@@ -312,7 +312,7 @@ def main(page: ft.Page):
                         try:
                             borrar_cita(cid)
                             page.show_dialog(ft.SnackBar(ft.Text("Cita cancelada con éxito"), bgcolor=ft.Colors.GREEN, open=True))
-                            buscar_mis_citas(None) # Recargar
+                            buscar_mis_citas(None)
                         except Exception as ex:
                             page.show_dialog(ft.SnackBar(ft.Text(f"Error: {ex}"), bgcolor=ft.Colors.RED, open=True))
 
@@ -409,7 +409,6 @@ def main(page: ft.Page):
         ft.Text("FISI-K CENTER", size=22, weight="bold", color=TEXT_WHITE),
         ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
         
-        # Agregamos todas las vistas al centro de la página, pero solo la de inicio es visible al principio
         vista_inicio,
         vista_paso1,
         vista_paso2,
