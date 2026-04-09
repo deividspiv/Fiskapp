@@ -10,6 +10,10 @@ ACCENT_COLOR = "#D200AC"
 MUTED_COLOR = "#1D284C"     
 TEXT_WHITE = ft.Colors.WHITE
 
+# --- COLORES NEÓN ---
+COLOR_VERDE_LED = "#00FF00"
+COLOR_NEON_AMARILLO = "#FFFF00"
+
 RGB_NEON_COLORS = [
     "#FF003C", 
     "#00FF33", 
@@ -91,7 +95,7 @@ def main(page: ft.Page):
         ft.ElevatedButton(
             "Cancelar mi Cita", icon=ft.Icons.CANCEL, bgcolor=CARD_COLOR, color=TEXT_WHITE, 
             style=ft.ButtonStyle(padding=20, shape=ft.RoundedRectangleBorder(radius=15)), width=280, 
-            on_click=lambda _: cambiar_vista(vista_paso1)
+            on_click=lambda _: cambiar_vista(vista_cancelar)
         ),
         ft.Container(height=10),
         ft.ElevatedButton(
@@ -105,18 +109,33 @@ def main(page: ft.Page):
     contenedor_horarios = ft.Row(spacing=10, run_spacing=10, alignment=ft.MainAxisAlignment.CENTER, wrap=True, width=380)
     btn_siguiente_1 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: cambiar_vista(vista_paso2))
 
+    # ==========================================
+    # LÓGICA DE HORAS CON VERDE LED Y NEÓN AMARILLO
+    # ==========================================
     def seleccionar_hora(e, hora):
         nonlocal hora_val
         hora_val = hora
         for btn in contenedor_horarios.controls:
             if btn.data == hora:
-                btn.bgcolor = ACCENT_COLOR
-                btn.color = TEXT_WHITE
-                btn.icon_color = TEXT_WHITE
+                # SELECCIONADO: Verde LED dentro, Amarillo Neón fuera
+                btn.bgcolor = COLOR_VERDE_LED
+                btn.color = "#000000" # Letra oscura para que se lea en el fondo verde
+                btn.icon_color = "#000000"
+                btn.style = ft.ButtonStyle(
+                    shape=ft.RoundedRectangleBorder(radius=10),
+                    side=ft.BorderSide(2, COLOR_NEON_AMARILLO), # Borde amarillo
+                    shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color=COLOR_NEON_AMARILLO) # Sombra Neón
+                )
             elif not btn.disabled:
+                # NORMAL: Regresa a colores base
                 btn.bgcolor = CARD_COLOR
                 btn.color = TEXT_WHITE
                 btn.icon_color = ACCENT_COLOR
+                btn.style = ft.ButtonStyle(
+                    shape=ft.RoundedRectangleBorder(radius=10),
+                    side=ft.BorderSide(1, ft.Colors.TRANSPARENT),
+                    shadow=None
+                )
         btn_siguiente_1.disabled = False
         page.update()
 
@@ -148,7 +167,10 @@ def main(page: ft.Page):
                         h, data=h, icon=ft.Icons.RADIO_BUTTON_UNCHECKED, icon_color=ACCENT_COLOR, 
                         color=TEXT_WHITE, bgcolor=CARD_COLOR, width=115, 
                         on_click=lambda e, hb=h: seleccionar_hora(e, hb), 
-                        style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))
+                        style=ft.ButtonStyle(
+                            shape=ft.RoundedRectangleBorder(radius=10),
+                            side=ft.BorderSide(1, ft.Colors.TRANSPARENT)
+                        )
                     )
                 )
         page.update()
@@ -184,7 +206,7 @@ def main(page: ft.Page):
     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, visible=False)
 
     # ==========================================
-    # PASO 2: DISEÑO "BADASS" NEON RGB DINÁMICO
+    # PASO 2: CUADRÍCULA DE SERVICIOS CENTRADA Y NEÓN
     # ==========================================
     btn_siguiente_2 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: ir_a_paso3())
     
@@ -225,15 +247,17 @@ def main(page: ft.Page):
             servicio_db = f"{categoria.split(' ')[1]} - {sub} (${precio})"
             tarjeta = ft.Container(
                 data=servicio_db,
+                # CONTENIDO PERFECTAMENTE CENTRADO EN LA TARJETA
                 content=ft.Column([
-                    ft.Text(sub, size=12, weight="bold", color=TEXT_WHITE, text_align=ft.TextAlign.CENTER, expand=True),
-                    ft.Text(f"${precio} MXN", size=11, color=ACCENT_COLOR, weight="bold", text_align=ft.TextAlign.CENTER)
-                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2),
+                    ft.Text(sub, size=13, weight="bold", color=TEXT_WHITE, text_align=ft.TextAlign.CENTER),
+                    ft.Text(f"${precio} MXN", size=12, color=ACCENT_COLOR, weight="bold", text_align=ft.TextAlign.CENTER)
+                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
                 width=116, 
                 height=110, 
                 bgcolor=MUTED_COLOR,
                 border_radius=15,
                 border=ft.border.all(1, ft.Colors.WHITE10),
+                padding=5,
                 on_click=lambda ev, s=servicio_db: seleccionar_servicio(ev, s),
                 animate=300 
             )
@@ -258,7 +282,6 @@ def main(page: ft.Page):
         ft.Container(height=10),
         row_categorias, 
         ft.Container(height=15),
-        # ¡CORRECCIÓN! Eliminado el atributo 'alignment' que causaba el error.
         ft.Container(
             content=grid_servicios, 
             padding=10, 
