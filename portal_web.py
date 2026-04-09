@@ -110,7 +110,7 @@ def main(page: ft.Page):
     btn_siguiente_1 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: cambiar_vista(vista_paso2))
 
     # ==========================================
-    # LÓGICA DE HORAS CON VERDE LED Y NEÓN AMARILLO
+    # LÓGICA DE HORAS CON VERDE LED Y NEÓN AMARILLO (CORREGIDA)
     # ==========================================
     def seleccionar_hora(e, hora):
         nonlocal hora_val
@@ -119,22 +119,25 @@ def main(page: ft.Page):
             if btn.data == hora:
                 # SELECCIONADO: Verde LED dentro, Amarillo Neón fuera
                 btn.bgcolor = COLOR_VERDE_LED
-                btn.color = "#000000" # Letra oscura para que se lea en el fondo verde
+                btn.color = "#000000" 
                 btn.icon_color = "#000000"
+                # Usamos elevation y shadow_color nativos para que no crashee
                 btn.style = ft.ButtonStyle(
                     shape=ft.RoundedRectangleBorder(radius=10),
-                    side=ft.BorderSide(2, COLOR_NEON_AMARILLO), # Borde amarillo
-                    shadow=ft.BoxShadow(spread_radius=1, blur_radius=8, color=COLOR_NEON_AMARILLO) # Sombra Neón
+                    side=ft.BorderSide(2, COLOR_NEON_AMARILLO), 
+                    shadow_color=COLOR_NEON_AMARILLO, 
+                    elevation=15 
                 )
             elif not btn.disabled:
-                # NORMAL: Regresa a colores base
+                # NORMAL: Regresa a colores base sin sombra
                 btn.bgcolor = CARD_COLOR
                 btn.color = TEXT_WHITE
                 btn.icon_color = ACCENT_COLOR
                 btn.style = ft.ButtonStyle(
                     shape=ft.RoundedRectangleBorder(radius=10),
                     side=ft.BorderSide(1, ft.Colors.TRANSPARENT),
-                    shadow=None
+                    shadow_color=ft.Colors.TRANSPARENT,
+                    elevation=0
                 )
         btn_siguiente_1.disabled = False
         page.update()
@@ -169,7 +172,8 @@ def main(page: ft.Page):
                         on_click=lambda e, hb=h: seleccionar_hora(e, hb), 
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=10),
-                            side=ft.BorderSide(1, ft.Colors.TRANSPARENT)
+                            side=ft.BorderSide(1, ft.Colors.TRANSPARENT),
+                            elevation=0
                         )
                     )
                 )
@@ -247,7 +251,6 @@ def main(page: ft.Page):
             servicio_db = f"{categoria.split(' ')[1]} - {sub} (${precio})"
             tarjeta = ft.Container(
                 data=servicio_db,
-                # CONTENIDO PERFECTAMENTE CENTRADO EN LA TARJETA
                 content=ft.Column([
                     ft.Text(sub, size=13, weight="bold", color=TEXT_WHITE, text_align=ft.TextAlign.CENTER),
                     ft.Text(f"${precio} MXN", size=12, color=ACCENT_COLOR, weight="bold", text_align=ft.TextAlign.CENTER)
