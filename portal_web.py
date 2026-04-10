@@ -110,18 +110,16 @@ def main(page: ft.Page):
     btn_siguiente_1 = ft.ElevatedButton("Siguiente Paso ➡️", bgcolor=ACCENT_COLOR, color=TEXT_WHITE, disabled=True, on_click=lambda _: cambiar_vista(vista_paso2))
 
     # ==========================================
-    # LÓGICA DE HORAS CON VERDE LED Y NEÓN AMARILLO (CORREGIDA)
+    # LÓGICA DE HORAS CON VERDE LED Y NEÓN AMARILLO
     # ==========================================
     def seleccionar_hora(e, hora):
         nonlocal hora_val
         hora_val = hora
         for btn in contenedor_horarios.controls:
             if btn.data == hora:
-                # SELECCIONADO: Verde LED dentro, Amarillo Neón fuera
                 btn.bgcolor = COLOR_VERDE_LED
                 btn.color = "#000000" 
                 btn.icon_color = "#000000"
-                # Usamos elevation y shadow_color nativos para que no crashee
                 btn.style = ft.ButtonStyle(
                     shape=ft.RoundedRectangleBorder(radius=10),
                     side=ft.BorderSide(2, COLOR_NEON_AMARILLO), 
@@ -129,7 +127,6 @@ def main(page: ft.Page):
                     elevation=15 
                 )
             elif not btn.disabled:
-                # NORMAL: Regresa a colores base sin sombra
                 btn.bgcolor = CARD_COLOR
                 btn.color = TEXT_WHITE
                 btn.icon_color = ACCENT_COLOR
@@ -357,6 +354,9 @@ def main(page: ft.Page):
     input_cancelar_tel = ft.TextField(label="Ingresa tu WhatsApp", hint_text="Ej: 777...", width=250, border_radius=15, bgcolor=MUTED_COLOR, border_color=ACCENT_COLOR, color=TEXT_WHITE)
     lista_citas_cancelar = ft.Column(spacing=10, width=350)
 
+    # ==========================================
+    # EL CANDADO ANTI-BORRADO DE CITAS CONFIRMADAS
+    # ==========================================
     def buscar_mis_citas(e):
         tel = input_cancelar_tel.value
         if not tel: return
@@ -366,16 +366,24 @@ def main(page: ft.Page):
         try:
             todas = obtener_citas()
             ahora_mx = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
-            mis_citas = [c for c in todas if str(c.get('cliente_telefono')) == str(tel) and c.get('fecha') >= ahora_mx.strftime("%Y-%m-%d")]
+            
+            # MAGIA AQUÍ: Filtramos para que NO muestre las citas donde asistio == True
+            mis_citas = [
+                c for c in todas 
+                if str(c.get('cliente_telefono')) == str(tel) 
+                and c.get('fecha') >= ahora_mx.strftime("%Y-%m-%d")
+                and c.get('asistio') != True  # <-- ESTE ES EL CANDADO
+            ]
+            
             if not mis_citas:
-                lista_citas_cancelar.controls.append(ft.Text("No tienes citas próximas con este número.", color=ft.Colors.WHITE54, text_align=ft.TextAlign.CENTER))
+                lista_citas_cancelar.controls.append(ft.Text("No tienes citas próximas pendientes por cancelar con este número.", color=ft.Colors.WHITE54, text_align=ft.TextAlign.CENTER))
             else:
                 for c in mis_citas:
                     def cancelar_esta(e, cid=c.get('id')):
                         try:
                             borrar_cita(cid)
                             page.show_dialog(ft.SnackBar(ft.Text("Cita cancelada con éxito"), bgcolor=ft.Colors.GREEN, open=True))
-                            buscar_mis_citas(None)
+                            buscar_mis_citas(None) # Refresca la lista
                         except Exception as ex:
                             page.show_dialog(ft.SnackBar(ft.Text(f"Error: {ex}"), bgcolor=ft.Colors.RED, open=True))
                     
