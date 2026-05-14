@@ -16,8 +16,7 @@ def main(page: ft.Page):
     page.title = "Novum Pilates"
     page.theme_mode = ft.ThemeMode.LIGHT
     
-    # Variables de Sesión
-    page.session.set("is_logged_in", False)
+    # Render cloud window fix (borramos el page.window para que no crashee en web)
     
     # Variables de Sesión
     page.session.set("is_logged_in", False)
@@ -157,6 +156,7 @@ def main(page: ft.Page):
                 ft.Text("Método de pago", size=14, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO_DARK), ft.Container(height=10), 
                 ft.Container(content=ft.Row([ft.Icon(ft.icons.CREDIT_CARD, color=COLOR_TEXTO_BLANCO), ft.Text("Pagar en línea (BBVA)", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor="#004481", padding=15, border_radius=12, on_click=pagar_bbva)
             ]))
+            
         elif page.route == "/pago/verificando":
             estado_ui = ft.Container(content=ft.Column([ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4), ft.Container(height=20), ft.Text("Esperando confirmación del banco...", size=16, color=COLOR_RESPIRO_DARK)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, height=300)
             def verificar_estado_pago(e):
@@ -173,19 +173,169 @@ def main(page: ft.Page):
             btn_accion = ft.ElevatedButton("Ya realicé mi pago", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago)
             page.views.append(ft.View("/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Container(height=50), ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion]))
 
-        # 4. SERVICIOS 
+        # =========================================================================
+        # 4. SERVICIOS Y AGENDA ALUMNO (NUEVA PANTALLA FUSIONADA)
+        # =========================================================================
         elif page.route == "/servicios":
             nombre_usuario = page.session.get('user_name')
             primer_nombre = nombre_usuario.split()[0] if nombre_usuario else 'Alumno'
-            page.views.append(ft.View("/servicios", bgcolor=COLOR_BG_CLARO, padding=20, controls=[
-                ft.Container(height=20), ft.Row([ft.Column([ft.Text(f"Hola, {primer_nombre}", size=34, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Text("Selecciona tu Servicio", size=17, color=COLOR_RESPIRO_DARK)], spacing=0), ft.Container(expand=True), ft.IconButton(icon=ft.icons.ACCOUNT_CIRCLE, icon_color=COLOR_RESPIRO, icon_size=40, on_click=lambda _: page.go("/perfil"))]),
-                ft.Container(height=20), ft.ListView([
-                    ft.Container(content=ft.Text("Pilates", weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO), padding=20, bgcolor=COLOR_TEXTO_BLANCO, border_radius=15, on_click=lambda _: page.go("/calendario/Pilates")), 
-                    ft.Container(content=ft.Text("Yoga", weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO), padding=20, bgcolor=COLOR_TEXTO_BLANCO, border_radius=15, on_click=lambda _: page.go("/calendario/Yoga")), 
-                    ft.Container(content=ft.Text("Ejercicios Funcionales", weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO), padding=20, bgcolor=COLOR_TEXTO_BLANCO, border_radius=15, on_click=lambda _: page.go("/calendario/Ejercicios Funcionales"))
-                ], expand=True, spacing=10)
-            ]))
+            inicial = primer_nombre[0].upper() if primer_nombre else "A"
             
+            hoy = datetime.date.today()
+            vista_estado = {
+                "fecha_activa": hoy,
+                "servicio_activo": "Pilates" # Seleccionado por defecto
+            }
+
+            servicios_ui = ft.Row(spacing=10, scroll=ft.ScrollMode.HIDDEN)
+            dias_ui = ft.Row(spacing=15, scroll=ft.ScrollMode.HIDDEN)
+            horarios_ui = ft.Column(spacing=15)
+
+            def recargar_pantalla():
+                # 1. Mostrar Ruedita de Carga en los horarios
+                horarios_ui.controls.clear()
+                horarios_ui.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
+                page.update()
+
+                # 2. Construir Píldoras de Servicios
+                servicios_ui.controls.clear()
+                nombres_servicios = ["Pilates", "Yoga", "Ejercicios Funcionales"]
+                for serv in nombres_servicios:
+                    es_activo = (serv == vista_estado["servicio_activo"])
+                    servicios_ui.controls.append(
+                        ft.Container(
+                            content=ft.Text(serv, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_BLANCO if es_activo else COLOR_RESPIRO),
+                            bgcolor=COLOR_RESPIRO if es_activo else COLOR_TEXTO_BLANCO,
+                            padding=ft.padding.symmetric(horizontal=20, vertical=10),
+                            border_radius=20,
+                            border=ft.border.all(1, COLOR_RESPIRO) if not es_activo else None,
+                            on_click=lambda e, s=serv: al_seleccionar_servicio(s)
+                        )
+                    )
+
+                # 3. Construir Calendario Horizontal
+                dias_ui.controls.clear()
+                nombres_dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+                for i in range(14): # Cargamos 2 semanas de vista rápida
+                    fecha_iter = hoy + datetime.timedelta(days=i)
+                    es_dia_seleccionado = (fecha_iter == vista_estado["fecha_activa"])
+                    bg_color = COLOR_RESPIRO if es_dia_seleccionado else COLOR_TEXTO_BLANCO
+                    text_color = COLOR_TEXTO_BLANCO if es_dia_seleccionado else COLOR_TEXTO_OSCURO
+
+                    dias_ui.controls.append(
+                        ft.Container(
+                            content=ft.Column([
+                                ft.Text(nombres_dias[fecha_iter.weekday()], size=14, color=text_color, weight=ft.FontWeight.W_500),
+                                ft.Text(str(fecha_iter.day), size=20, color=text_color, weight=ft.FontWeight.BOLD),
+                            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                            bgcolor=bg_color, width=65, height=80, border_radius=15, border=ft.border.all(1, "#E5E5EA") if not es_dia_seleccionado else None,
+                            on_click=lambda e, f=fecha_iter: al_seleccionar_dia(f) 
+                        )
+                    )
+
+                # 4. Traer los horarios de la base de datos
+                horarios_ui.controls.clear() 
+                fecha_str = str(vista_estado["fecha_activa"])
+                
+                if AppDB.es_dia_bloqueado(fecha_str):
+                    horarios_ui.controls.append(ft.Container(
+                        content=ft.Column([
+                            ft.Icon(ft.icons.NIGHTLIGHT_ROUND, size=50, color=COLOR_RESPIRO),
+                            ft.Text("Estudio Cerrado", size=20, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
+                            ft.Text("Tómate un descanso. Nos vemos pronto.", text_align=ft.TextAlign.CENTER, color=COLOR_RESPIRO_DARK)
+                        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
+                        bgcolor=COLOR_TEXTO_BLANCO, padding=40, border_radius=15, width=float('inf')
+                    ))
+                else:
+                    clases_del_dia = AppDB.obtener_clases(vista_estado["servicio_activo"], fecha_str)
+                    if not clases_del_dia:
+                        horarios_ui.controls.append(ft.Text(f"No hay clases de {vista_estado['servicio_activo']} programadas para esta fecha.", color=COLOR_RESPIRO_DARK))
+
+                    for h in clases_del_dia:
+                        is_full = h["cupo"] <= 0
+                        btn_color = "#E5E5EA" if is_full else COLOR_CREMA_BOTON
+                        btn_text = "Lleno" if is_full else "Reservar"
+                        text_btn_color = COLOR_RESPIRO_DARK if is_full else "#6b5b50"
+
+                        horarios_ui.controls.append(
+                            ft.Container(
+                                content=ft.Row([
+                                    ft.Column([ft.Text(h["hora"], size=18, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Text(f"Prof: {h['instructor']}", size=13, color=COLOR_RESPIRO_DARK), ft.Text(f"Lugares: {h['cupo']}", size=12, color=COLOR_RESPIRO if not is_full else ft.colors.RED_400)], spacing=2),
+                                    ft.Container(expand=True), 
+                                    ft.Container(content=ft.Text(btn_text, weight=ft.FontWeight.BOLD, color=text_btn_color, size=13), bgcolor=btn_color, padding=ft.padding.symmetric(horizontal=20, vertical=10), border_radius=20, on_click=lambda e, c=h: confirmar_reserva(c) if not is_full else None)
+                                ]), bgcolor=COLOR_TEXTO_BLANCO, padding=20, border_radius=15, shadow=ft.BoxShadow(blur_radius=10, color="#0A000000", offset=ft.Offset(0, 4))
+                            )
+                        )
+                page.update()
+
+            def al_seleccionar_dia(nueva_fecha):
+                vista_estado["fecha_activa"] = nueva_fecha
+                recargar_pantalla()
+
+            def al_seleccionar_servicio(nuevo_servicio):
+                vista_estado["servicio_activo"] = nuevo_servicio
+                recargar_pantalla()
+
+            def confirmar_reserva(clase):
+                telefono_alumno = page.session.get("user_phone")
+                usuario_actual = AppDB.verificar_usuario(telefono_alumno)
+                creditos_actuales = usuario_actual.get('credits', 0) if usuario_actual else 0
+                if creditos_actuales <= 0:
+                    snack = ft.SnackBar(ft.Text("No tienes clases disponibles. Redirigiendo a la tienda..."), bgcolor=ft.colors.ORANGE_500)
+                    page.overlay.append(snack)
+                    snack.open = True
+                    page.update()
+                    time.sleep(1.5)
+                    page.go("/paquetes")
+                    return
+                exito = AppDB.reservar_clase(telefono_alumno, clase["id"])
+                if exito:
+                    snack = ft.SnackBar(ft.Text("¡Reserva confirmada! Se descontó 1 clase."), bgcolor=ft.colors.GREEN_600)
+                    recargar_pantalla() 
+                else:
+                    snack = ft.SnackBar(ft.Text("Hubo un error al reservar. Intenta de nuevo."), bgcolor=ft.colors.RED_500)
+                page.overlay.append(snack)
+                snack.open = True
+                page.update()
+
+            recargar_pantalla()
+
+            # --- NUEVO AVATAR DE PERFIL ---
+            avatar_perfil = ft.Container(
+                content=ft.Text(inicial, size=22, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_BLANCO),
+                alignment=ft.alignment.center,
+                width=45, height=45,
+                bgcolor=COLOR_RESPIRO,
+                shape=ft.BoxShape.CIRCLE,
+                shadow=ft.BoxShadow(blur_radius=5, color="#33000000", offset=ft.Offset(0, 2)),
+                on_click=lambda _: page.go("/perfil")
+            )
+
+            page.views.append(ft.View(
+                "/servicios", bgcolor=COLOR_BG_CLARO, padding=20, scroll=ft.ScrollMode.AUTO, 
+                controls=[
+                    ft.Container(height=10),
+                    ft.Row([
+                        ft.Column([
+                            ft.Text(f"Hola, {primer_nombre} 👋", size=26, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), 
+                            ft.Text("Reserva tu próxima clase", size=15, color=COLOR_RESPIRO_DARK)
+                        ], spacing=0),
+                        ft.Container(expand=True), 
+                        avatar_perfil
+                    ]),
+                    ft.Container(height=25), 
+                    servicios_ui, # Píldoras de servicio (Pilates, Yoga...)
+                    ft.Container(height=25),
+                    dias_ui,      # Calendario horizontal
+                    ft.Container(height=25),
+                    ft.Text("Horarios Disponibles", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
+                    ft.Container(height=10), 
+                    horarios_ui, 
+                    ft.Container(height=40) 
+                ]
+            ))
+            
+        # 4.5 HISTORIAL Y PERFIL
         elif page.route == "/perfil":
             telefono_alumno = page.session.get("user_phone")
             usuario = AppDB.verificar_usuario(telefono_alumno)
@@ -210,8 +360,7 @@ def main(page: ft.Page):
             fecha_activa = [datetime.date.today()]
             txt_fecha_top = ft.Text(fecha_activa[0].strftime("%Y-%m-%d"), size=18, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO)
             
-            # --- ESTADO Y BOTONES DE AGENDA ---
-            modo_agenda = ["30"] # Puede ser "30" o "dia"
+            modo_agenda = ["30"]
             
             def set_modo_30(e):
                 modo_agenda[0] = "30"
@@ -228,7 +377,6 @@ def main(page: ft.Page):
             btn_modo_30 = ft.ElevatedButton("30 Días", on_click=set_modo_30, bgcolor=COLOR_RESPIRO, color="white", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)))
             btn_modo_dia = ft.ElevatedButton("Día Específico", on_click=set_modo_dia, bgcolor="transparent", color=COLOR_RESPIRO, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)))
 
-            # Controles Tab 1 (Crear)
             opciones_servicios = [ft.dropdown.Option(s["name"]) for s in AppDB.obtener_servicios()]
             drop_serv = ft.Dropdown(label="Servicio", options=opciones_servicios, border_color=COLOR_RESPIRO)
             drop_hora = ft.Dropdown(label="Horario", options=[ft.dropdown.Option("08:00 AM"), ft.dropdown.Option("09:15 AM"), ft.dropdown.Option("06:30 PM")], border_color=COLOR_RESPIRO)
@@ -238,7 +386,6 @@ def main(page: ft.Page):
             lista_agenda = ft.ListView(expand=True, spacing=10)
             lista_bloqueos = ft.ListView(expand=True, spacing=10)
             
-            # DIÁLOGO DE EDICIÓN
             id_edicion = [None]
             drop_serv_ed = ft.Dropdown(label="Servicio", options=opciones_servicios, border_color=COLOR_RESPIRO)
             drop_hora_ed = ft.Dropdown(label="Horario", options=[ft.dropdown.Option("08:00 AM"), ft.dropdown.Option("09:15 AM"), ft.dropdown.Option("06:30 PM")], border_color=COLOR_RESPIRO)
@@ -270,14 +417,12 @@ def main(page: ft.Page):
             def recargar_listas():
                 f_str = fecha_activa[0].strftime("%Y-%m-%d")
                 
-                # --- TRUCO DE UX: MOSTRAR CARGANDO ---
                 lista_agenda.controls.clear()
                 lista_agenda.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
-                page.update() # Obligamos a la pantalla a mostrar la ruedita YA
-                # -------------------------------------
+                page.update() 
                 
-                # Cargar Agenda
-                lista_agenda.controls.clear() # Quitamos la ruedita
+                lista_agenda.controls.clear()
+                
                 if modo_agenda[0] == "30":
                     hoy_str = datetime.date.today().strftime("%Y-%m-%d")
                     fin_str = (datetime.date.today() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
@@ -286,6 +431,7 @@ def main(page: ft.Page):
                     clases = AppDB.obtener_todas_las_clases_dia(f_str)
                 
                 if not clases: lista_agenda.controls.append(ft.Text("No hay clases programadas.", color=COLOR_RESPIRO_DARK))
+                
                 for c in clases:
                     if not c.get('is_blocked'):
                         fecha_lbl = f"{c['class_date']} | " if modo_agenda[0] == "30" else ""
@@ -300,7 +446,6 @@ def main(page: ft.Page):
                             ]), bgcolor=COLOR_TEXTO_BLANCO, padding=15, border_radius=10, border=ft.border.all(1, "#E5E5EA")
                         ))
                 
-                # Cargar Bloqueos
                 lista_bloqueos.controls.clear()
                 bloqueos = AppDB.obtener_dias_bloqueados()
                 if not bloqueos: lista_bloqueos.controls.append(ft.Text("No hay días cerrados programados.", color=COLOR_RESPIRO_DARK))
@@ -321,7 +466,7 @@ def main(page: ft.Page):
                 if dp_admin.value:
                     fecha_activa[0] = dp_admin.value
                     txt_fecha_top.value = fecha_activa[0].strftime("%Y-%m-%d")
-                    set_modo_dia(None) # Al elegir fecha, cambiamos el modo de Agenda a "Día Específico" automáticamente
+                    set_modo_dia(None) 
                     page.update()
 
             dp_admin = ft.DatePicker(on_change=al_cambiar_fecha_admin)
@@ -375,7 +520,6 @@ def main(page: ft.Page):
 
             recargar_listas()
 
-            # --- PESTAÑAS ---
             tab_crear = ft.Tab(text="Crear", icon=ft.icons.ADD_BOX, content=ft.Container(padding=20, content=ft.Column([
                 ft.Text("Agendar Nueva Clase", size=18, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO),
                 ft.Container(height=10), drop_serv, drop_hora, ft.Row([txt_inst, txt_cupo]), ft.Container(height=20),
@@ -404,118 +548,6 @@ def main(page: ft.Page):
                 ft.Tabs(selected_index=0, animation_duration=300, unselected_label_color=COLOR_RESPIRO_DARK, label_color=COLOR_RESPIRO, indicator_color=COLOR_RESPIRO, expand=True, tabs=[tab_crear, tab_agenda, tab_bloqueos])
             ]))
 
-        # =========================================================================
-        # 7. CALENDARIO ALUMNO
-        # =========================================================================
-        elif page.route.startswith("/calendario/"):
-            servicio = page.route.split("/")[2]
-            hoy = datetime.date.today()
-            vista_estado = {"fecha_activa": hoy}
-
-            dias_ui = ft.Row(spacing=15, scroll=ft.ScrollMode.HIDDEN)
-            horarios_ui = ft.Column(spacing=15)
-
-            def recargar_pantalla():
-                dias_ui.controls.clear()
-                horarios_ui.controls.clear()
-                
-                # --- TRUCO DE UX: MOSTRAR CARGANDO ---
-                horarios_ui.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
-                page.update()
-                # -------------------------------------
-
-                nombres_dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-                
-                for i in range(7): 
-                    fecha_iter = hoy + datetime.timedelta(days=i)
-                    es_dia_seleccionado = (fecha_iter == vista_estado["fecha_activa"])
-                    bg_color = COLOR_RESPIRO if es_dia_seleccionado else COLOR_TEXTO_BLANCO
-                    text_color = COLOR_TEXTO_BLANCO if es_dia_seleccionado else COLOR_TEXTO_OSCURO
-
-                    dias_ui.controls.append(
-                        ft.Container(
-                            content=ft.Column([
-                                ft.Text(nombres_dias[fecha_iter.weekday()], size=14, color=text_color, weight=ft.FontWeight.W_500),
-                                ft.Text(str(fecha_iter.day), size=20, color=text_color, weight=ft.FontWeight.BOLD),
-                            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                            bgcolor=bg_color, width=65, height=80, border_radius=15, border=ft.border.all(1, "#E5E5EA") if not es_dia_seleccionado else None,
-                            on_click=lambda e, f=fecha_iter: al_seleccionar_dia(f) 
-                        )
-                    )
-
-                horarios_ui.controls.clear() # Quitamos la ruedita de carga
-                fecha_str = str(vista_estado["fecha_activa"])
-                
-                if AppDB.es_dia_bloqueado(fecha_str):
-                    horarios_ui.controls.append(ft.Container(
-                        content=ft.Column([
-                            ft.Icon(ft.icons.NIGHTLIGHT_ROUND, size=50, color=COLOR_RESPIRO),
-                            ft.Text("Estudio Cerrado", size=20, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
-                            ft.Text("Tómate un descanso. Nos vemos pronto.", text_align=ft.TextAlign.CENTER, color=COLOR_RESPIRO_DARK)
-                        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-                        bgcolor=COLOR_TEXTO_BLANCO, padding=40, border_radius=15, width=float('inf')
-                    ))
-                else:
-                    clases_del_dia = AppDB.obtener_clases(servicio, fecha_str)
-                    if not clases_del_dia:
-                        horarios_ui.controls.append(ft.Text("No hay clases programadas para esta fecha.", color=COLOR_RESPIRO_DARK))
-
-                    for h in clases_del_dia:
-                        is_full = h["cupo"] <= 0
-                        btn_color = "#E5E5EA" if is_full else COLOR_CREMA_BOTON
-                        btn_text = "Lleno" if is_full else "Reservar"
-                        text_btn_color = COLOR_RESPIRO_DARK if is_full else "#6b5b50"
-
-                        horarios_ui.controls.append(
-                            ft.Container(
-                                content=ft.Row([
-                                    ft.Column([ft.Text(h["hora"], size=18, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Text(f"Prof: {h['instructor']}", size=13, color=COLOR_RESPIRO_DARK), ft.Text(f"Lugares: {h['cupo']}", size=12, color=COLOR_RESPIRO if not is_full else ft.colors.RED_400)], spacing=2),
-                                    ft.Container(expand=True), 
-                                    ft.Container(content=ft.Text(btn_text, weight=ft.FontWeight.BOLD, color=text_btn_color, size=13), bgcolor=btn_color, padding=ft.padding.symmetric(horizontal=20, vertical=10), border_radius=20, on_click=lambda e, c=h: confirmar_reserva(c) if not is_full else None)
-                                ]), bgcolor=COLOR_TEXTO_BLANCO, padding=20, border_radius=15, shadow=ft.BoxShadow(blur_radius=10, color="#0A000000", offset=ft.Offset(0, 4))
-                            )
-                        )
-                page.update()
-
-            def al_seleccionar_dia(nueva_fecha):
-                vista_estado["fecha_activa"] = nueva_fecha
-                recargar_pantalla()
-
-            def confirmar_reserva(clase):
-                telefono_alumno = page.session.get("user_phone")
-                usuario_actual = AppDB.verificar_usuario(telefono_alumno)
-                creditos_actuales = usuario_actual.get('credits', 0) if usuario_actual else 0
-                if creditos_actuales <= 0:
-                    snack = ft.SnackBar(ft.Text("No tienes clases disponibles. Redirigiendo a la tienda..."), bgcolor=ft.colors.ORANGE_500)
-                    page.overlay.append(snack)
-                    snack.open = True
-                    page.update()
-                    time.sleep(1.5)
-                    page.go("/paquetes")
-                    return
-                exito = AppDB.reservar_clase(telefono_alumno, clase["id"])
-                if exito:
-                    snack = ft.SnackBar(ft.Text(f"¡Reserva confirmada! Se descontó 1 clase."), bgcolor=ft.colors.GREEN_600)
-                    recargar_pantalla() 
-                else:
-                    snack = ft.SnackBar(ft.Text("Hubo un error al reservar. Intenta de nuevo."), bgcolor=ft.colors.RED_500)
-                page.overlay.append(snack)
-                snack.open = True
-                page.update()
-
-            recargar_pantalla()
-
-            page.views.append(ft.View(
-                page.route, bgcolor=COLOR_BG_CLARO, padding=20, scroll=ft.ScrollMode.AUTO, 
-                controls=[
-                    ft.Row([ft.IconButton(ft.icons.ARROW_BACK_IOS_NEW, icon_color=COLOR_RESPIRO, on_click=lambda _: page.go("/servicios")), ft.Text(f"{servicio}", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO)]), 
-                    ft.Container(height=10), ft.Text("Selecciona una fecha", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
-                    ft.Container(height=10), ft.Container(content=dias_ui, height=90), ft.Container(height=20),
-                    ft.Text("Clases disponibles", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
-                    ft.Container(height=10), horarios_ui, ft.Container(height=40) 
-                ]
-            ))
-
         page.update()
 
     def view_pop(e):
@@ -529,13 +561,5 @@ def main(page: ft.Page):
 
 if __name__ == "__main__":
     import os
-    # Render asigna el puerto automáticamente
     port = int(os.getenv("PORT", 8080))
-    
-    ft.app(
-        target=main, 
-        view=ft.AppView.WEB_BROWSER, # Modo Web
-        port=port, 
-        host="0.0.0.0", # IMPORTANTE: permite conexiones externas
-        assets_dir="assets"
-    )
+    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=port, host="0.0.0.0", assets_dir="assets")
