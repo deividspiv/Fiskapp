@@ -270,9 +270,14 @@ def main(page: ft.Page):
             def recargar_listas():
                 f_str = fecha_activa[0].strftime("%Y-%m-%d")
                 
-                # CARGAR AGENDA (Con filtro de 30 días o Día Específico)
+                # --- TRUCO DE UX: MOSTRAR CARGANDO ---
                 lista_agenda.controls.clear()
+                lista_agenda.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
+                page.update() # Obligamos a la pantalla a mostrar la ruedita YA
+                # -------------------------------------
                 
+                # Cargar Agenda
+                lista_agenda.controls.clear() # Quitamos la ruedita
                 if modo_agenda[0] == "30":
                     hoy_str = datetime.date.today().strftime("%Y-%m-%d")
                     fin_str = (datetime.date.today() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
@@ -281,12 +286,9 @@ def main(page: ft.Page):
                     clases = AppDB.obtener_todas_las_clases_dia(f_str)
                 
                 if not clases: lista_agenda.controls.append(ft.Text("No hay clases programadas.", color=COLOR_RESPIRO_DARK))
-                
                 for c in clases:
                     if not c.get('is_blocked'):
-                        # Si estamos en modo 30 días, mostramos la fecha junto a la hora
                         fecha_lbl = f"{c['class_date']} | " if modo_agenda[0] == "30" else ""
-                        
                         lista_agenda.controls.append(ft.Container(
                             content=ft.Row([
                                 ft.Column([ft.Text(f"{fecha_lbl}{c['start_time']} - {c['service_name']}", weight=ft.FontWeight.BOLD), ft.Text(f"Prof: {c['instructor']} | Cupo: {c.get('capacity', 10)}", size=12)], spacing=0),
