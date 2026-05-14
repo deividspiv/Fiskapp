@@ -15,8 +15,9 @@ COLOR_TEXTO_BLANCO = "#FFFFFF"
 def main(page: ft.Page):
     page.title = "Novum Pilates"
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.window.width = 400
-    page.window.height = 800
+    
+    # Variables de Sesión
+    page.session.set("is_logged_in", False)
     
     # Variables de Sesión
     page.session.set("is_logged_in", False)
