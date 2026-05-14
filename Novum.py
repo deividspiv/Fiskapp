@@ -418,6 +418,12 @@ def main(page: ft.Page):
             def recargar_pantalla():
                 dias_ui.controls.clear()
                 horarios_ui.controls.clear()
+                
+                # --- TRUCO DE UX: MOSTRAR CARGANDO ---
+                horarios_ui.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
+                page.update()
+                # -------------------------------------
+
                 nombres_dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
                 
                 for i in range(7): 
@@ -437,6 +443,7 @@ def main(page: ft.Page):
                         )
                     )
 
+                horarios_ui.controls.clear() # Quitamos la ruedita de carga
                 fecha_str = str(vista_estado["fecha_activa"])
                 
                 if AppDB.es_dia_bloqueado(fecha_str):
