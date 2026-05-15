@@ -137,18 +137,36 @@ def main(page: ft.Page):
                 ft.Container(height=450, content=ft.ListView(lista_tarjetas, horizontal=True, spacing=15))
             ]))
 
-        # 3. PAGOS Y VERIFICACIÓN
+        # 3. PAGOS Y VERIFICACIÓN (VERSIÓN IPHONE/SAFARI SEGURA)
         elif page.route.startswith("/pago/") and not page.route.endswith("/verificando"):
             monto = page.route.split("/")[2]
             page.session.set("monto_pendiente", monto)
             
+            btn_bbva = ft.Container(
+                content=ft.Row([ft.Icon(ft.icons.CREDIT_CARD, color=COLOR_TEXTO_BLANCO), ft.Text("Pagar en línea (BBVA)", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), 
+                bgcolor="#004481", padding=15, border_radius=12
+            )
+            
             def pagar_bbva(e):
+                # 1. Mostramos que estamos obteniendo el link
+                btn_bbva.content = ft.Row([ft.ProgressRing(width=20, height=20, color=COLOR_TEXTO_BLANCO, stroke_width=2), ft.Text(" Conectando al banco...", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER)
+                btn_bbva.on_click = None
+                page.update()
+                
+                # 2. Generamos el link de pago en la DB
                 telefono, nombre = page.session.get("user_phone"), page.session.get("user_name")
                 AppDB.crear_registro_pago(telefono, monto)
                 link = generar_enlace_pago(monto, f"Paquete Novum Pilates {monto}", nombre, telefono)
+                
+                # 3. ANTI-SAFARI: En lugar de forzar el launch_url, transformamos el botón en un Anchor nativo (.url)
                 if link:
-                    page.launch_url(link)
-                    page.go("/pago/verificando")
+                    btn_bbva.content = ft.Row([ft.Icon(ft.icons.LOCK_OUTLINE, color=COLOR_TEXTO_BLANCO), ft.Text("Toca aquí para abrir el banco", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER)
+                    btn_bbva.bgcolor = ft.colors.GREEN_600
+                    btn_bbva.url = link
+                    btn_bbva.on_click = lambda _: page.go("/pago/verificando")
+                    page.update()
+                    
+            btn_bbva.on_click = pagar_bbva
                     
             def pagar_recepcion_click(e):
                 snack = ft.SnackBar(ft.Text("Solicitud enviada. Paga en recepción.", color=COLOR_TEXTO_BLANCO), bgcolor=COLOR_RESPIRO)
@@ -161,7 +179,7 @@ def main(page: ft.Page):
                 ft.Container(height=30), ft.Text(f"Total a pagar: ${monto}.00 MXN", size=22, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), 
                 ft.Text("Método de pago", size=14, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO_DARK), ft.Container(height=10), 
                 
-                ft.Container(content=ft.Row([ft.Icon(ft.icons.CREDIT_CARD, color=COLOR_TEXTO_BLANCO), ft.Text("Pagar en línea (BBVA)", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor="#004481", padding=15, border_radius=12, on_click=pagar_bbva),
+                btn_bbva, # Usamos el botón seguro
                 
                 ft.Container(height=15), 
                 ft.Container(content=ft.Row([ft.Icon(ft.icons.MONEY, color=COLOR_TEXTO_OSCURO), ft.Text("Pagar en Recepción", color=COLOR_TEXTO_OSCURO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor=COLOR_BG_CLARO, padding=15, border_radius=12, on_click=pagar_recepcion_click)
