@@ -53,11 +53,47 @@ def main(page: ft.Page):
             ]), bgcolor=COLOR_TEXTO_BLANCO, padding=25, border_radius=20, border=ft.border.all(1, "#E5E5EA"), width=280, shadow=ft.BoxShadow(spread_radius=1, blur_radius=15, color="#1A000000", offset=ft.Offset(0, 8)),
         )
 
-    # --- ENRUTAMIENTO PRINCIPAL ---
+    # --- ENRUTAMIENTO PRINCIPAL CON RECUPERACIÓN DE SESIÓN (ANTI PANTALLA BLANCA) ---
     def route_change(e):
         page.views.clear()
         
-        # 1. PORTADA
+        # 1. HIDRATAR SESIÓN (Si el navegador se recargó y la sesión temporal se borró)
+        if not page.session.get("user_phone"):
+            try:
+                tel_guardado = page.client_storage.get("user_phone")
+                if tel_guardado:
+                    page.session.set("user_phone", tel_guardado)
+                    page.session.set("user_name", page.client_storage.get("user_name"))
+                    monto_guardado = page.client_storage.get("monto_pendiente")
+                    if monto_guardado:
+                        page.session.set("monto_pendiente", str(monto_guardado))
+            except Exception as ex:
+                print("Error de lectura de storage:", ex)
+
+        # 2. RUTEO RAÍZ (Decide adónde ir cuando la app abre desde cero)
+        if page.route == "/" or page.route == "":
+            telefono_actual = page.session.get("user_phone")
+            try:
+                esperando = page.client_storage.get("esperando_pago")
+            except:
+                esperando = False
+
+            if telefono_actual:
+                if esperando:
+                    page.go("/pago/verificando")
+                    return
+                
+                usuario = AppDB.verificar_usuario(telefono_actual)
+                if usuario and str(usuario.get('active_package', '')).lower().strip() == 'pagado':
+                    page.go("/servicios")
+                else:
+                    page.go("/paquetes")
+                return
+            else:
+                page.go("/login")
+                return
+        
+        # 3. PORTADA
         if page.route == "/login":
             page.views.append(ft.View(
                 "/login", bgcolor=COLOR_RESPIRO, padding=0, 
@@ -77,7 +113,7 @@ def main(page: ft.Page):
                 ]
             ))
 
-        # 1.5 FORMULARIO
+        # 4. FORMULARIO
         elif page.route == "/formulario_ingreso":
             nombre_field = ft.TextField(label="Nombre completo", border_radius=10, prefix_icon=ft.icons.PERSON, border_color=COLOR_RESPIRO, cursor_color=COLOR_RESPIRO)
             celular_field = ft.TextField(label="Número celular (10 dígitos)", border_radius=10, prefix_icon=ft.icons.PHONE, keyboard_type=ft.KeyboardType.PHONE, border_color=COLOR_RESPIRO, cursor_color=COLOR_RESPIRO)
@@ -98,12 +134,15 @@ def main(page: ft.Page):
                         if estado_paquete == 'pagado':
                             tiene_paquete_activo = True
 
-                    # GUARDADO EN MEMORIA PERSISTENTE
-                    page.client_storage.set("user_phone", celular_field.value)
-                    page.client_storage.set("user_name", nombre_final)
+                    # Memoria persistente para que no tenga que iniciar sesión otra vez
+                    try:
+                        page.client_storage.set("user_phone", celular_field.value)
+                        page.client_storage.set("user_name", nombre_final)
+                    except: pass
                     
                     page.session.set("user_phone", celular_field.value)
                     page.session.set("user_name", nombre_final)
+                    page.session.set("has_active_package", tiene_paquete_activo)
                     page.go("/servicios" if tiene_paquete_activo else "/paquetes")
 
             page.views.append(ft.View(
@@ -117,7 +156,7 @@ def main(page: ft.Page):
                 ]
             ))
 
-        # 2. PAQUETES
+        # 5. PAQUETES
         elif page.route == "/paquetes":
             paquetes_db = AppDB.obtener_paquetes()
             lista_tarjetas = [ft.Container(width=10)] 
@@ -132,17 +171,20 @@ def main(page: ft.Page):
                 ft.Container(height=450, content=ft.ListView(lista_tarjetas, horizontal=True, spacing=15))
             ]))
 
-        # 3. PAGOS Y VERIFICACIÓN
+        # 6. PAGOS Y VERIFICACIÓN
         elif page.route.startswith("/pago/") and not page.route.endswith("/verificando"):
             monto = page.route.split("/")[2]
+            page.session.set("monto_pendiente", monto)
             
             def pagar_bbva(e):
                 telefono, nombre = page.session.get("user_phone"), page.session.get("user_name")
                 AppDB.crear_registro_pago(telefono, monto)
                 
-                # GUARDAMOS ESTADO DEL PAGO POR SI SE RECARGA LA PÁGINA
-                page.client_storage.set("esperando_pago", True)
-                page.client_storage.set("monto_pendiente", str(monto))
+                # Dejamos la "nota" persistente por si el navegador recarga la página
+                try:
+                    page.client_storage.set("esperando_pago", True)
+                    page.client_storage.set("monto_pendiente", str(monto))
+                except: pass
                 
                 link = generar_enlace_pago(monto, f"Paquete Novum Pilates {monto}", nombre, telefono)
                 if link:
@@ -168,13 +210,18 @@ def main(page: ft.Page):
             estado_ui = ft.Container(content=ft.Column([ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4), ft.Container(height=20), ft.Text("Aprobando automáticamente...", size=16, color=COLOR_RESPIRO_DARK)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, height=300)
             
             def limpiar_estados_pago():
-                page.client_storage.remove("esperando_pago")
-                page.client_storage.remove("monto_pendiente")
+                try:
+                    page.client_storage.remove("esperando_pago")
+                    page.client_storage.remove("monto_pendiente")
+                except: pass
                 page.session.set("monto_pendiente", "")
 
+            # Comprobación silente de fondo
             def auto_check_payment():
-                monto = page.client_storage.get("monto_pendiente") or page.session.get("monto_pendiente")
+                monto = page.session.get("monto_pendiente")
                 telefono_alumno = page.session.get("user_phone")
+                if not telefono_alumno:
+                    return
                 for _ in range(60): 
                     time.sleep(2)
                     if page.route != "/pago/verificando":
@@ -193,8 +240,11 @@ def main(page: ft.Page):
             page.run_task(auto_check_payment)
             
             def verificar_estado_pago_manual(e):
-                monto = page.client_storage.get("monto_pendiente")
+                monto = page.session.get("monto_pendiente")
                 telefono_alumno = page.session.get("user_phone")
+                if not telefono_alumno:
+                    page.go("/login")
+                    return
                 usuario = AppDB.verificar_usuario(telefono_alumno)
                 if usuario and str(usuario.get('active_package', '')).lower().strip() == 'pagado':
                     if usuario.get('credits', 0) <= 0 and monto:
@@ -211,19 +261,14 @@ def main(page: ft.Page):
             
             page.views.append(ft.View("/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Container(height=50), ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion, btn_abortar]))
 
-        # =========================================================================
-        # 4. SERVICIOS Y AGENDA ALUMNO
-        # =========================================================================
+        # 7. SERVICIOS Y AGENDA ALUMNO
         elif page.route == "/servicios":
             nombre_usuario = page.session.get('user_name')
             primer_nombre = nombre_usuario.split()[0] if nombre_usuario else 'Alumno'
             inicial = primer_nombre[0].upper() if primer_nombre else "A"
             
             hoy = datetime.date.today()
-            vista_estado = {
-                "fecha_activa": hoy,
-                "servicio_activo": "Pilates" 
-            }
+            vista_estado = {"fecha_activa": hoy, "servicio_activo": "Pilates"}
 
             servicios_ui = ft.Row(spacing=10, scroll=ft.ScrollMode.HIDDEN)
             dias_ui = ft.Row(spacing=15, scroll=ft.ScrollMode.HIDDEN)
@@ -235,16 +280,13 @@ def main(page: ft.Page):
                 page.update()
 
                 servicios_ui.controls.clear()
-                nombres_servicios = ["Pilates", "Yoga", "Ejercicios Funcionales"]
-                for serv in nombres_servicios:
+                for serv in ["Pilates", "Yoga", "Ejercicios Funcionales"]:
                     es_activo = (serv == vista_estado["servicio_activo"])
                     servicios_ui.controls.append(
                         ft.Container(
                             content=ft.Text(serv, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_BLANCO if es_activo else COLOR_RESPIRO),
-                            bgcolor=COLOR_RESPIRO if es_activo else COLOR_TEXTO_BLANCO,
-                            padding=ft.padding.symmetric(horizontal=20, vertical=10),
-                            border_radius=20,
-                            border=ft.border.all(1, COLOR_RESPIRO) if not es_activo else None,
+                            bgcolor=COLOR_RESPIRO if es_activo else COLOR_TEXTO_BLANCO, padding=ft.padding.symmetric(horizontal=20, vertical=10),
+                            border_radius=20, border=ft.border.all(1, COLOR_RESPIRO) if not es_activo else None,
                             on_click=lambda e, s=serv: al_seleccionar_servicio(s)
                         )
                     )
@@ -348,10 +390,7 @@ def main(page: ft.Page):
 
             avatar_perfil = ft.Container(
                 content=ft.Text(inicial, size=22, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_BLANCO),
-                alignment=ft.alignment.center,
-                width=45, height=45,
-                bgcolor=COLOR_RESPIRO,
-                shape=ft.BoxShape.CIRCLE,
+                alignment=ft.alignment.center, width=45, height=45, bgcolor=COLOR_RESPIRO, shape=ft.BoxShape.CIRCLE,
                 shadow=ft.BoxShadow(blur_radius=5, color="#33000000", offset=ft.Offset(0, 2)),
                 on_click=lambda _: page.go("/perfil")
             )
@@ -361,12 +400,8 @@ def main(page: ft.Page):
                 controls=[
                     ft.Container(height=10),
                     ft.Row([
-                        ft.Column([
-                            ft.Text(f"Hola, {primer_nombre} 👋", size=26, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), 
-                            ft.Text("Reserva tu próxima clase", size=15, color=COLOR_RESPIRO_DARK)
-                        ], spacing=0),
-                        ft.Container(expand=True), 
-                        avatar_perfil
+                        ft.Column([ft.Text(f"Hola, {primer_nombre} 👋", size=26, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Text("Reserva tu próxima clase", size=15, color=COLOR_RESPIRO_DARK)], spacing=0),
+                        ft.Container(expand=True), avatar_perfil
                     ]),
                     ft.Container(height=25), servicios_ui, ft.Container(height=25), dias_ui, ft.Container(height=25),
                     ft.Text("Horarios Disponibles", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
@@ -374,9 +409,7 @@ def main(page: ft.Page):
                 ]
             ))
             
-        # =========================================================================
-        # 4.5 HISTORIAL Y PERFIL
-        # =========================================================================
+        # 8. HISTORIAL Y PERFIL
         elif page.route == "/perfil":
             telefono_alumno = page.session.get("user_phone")
             usuario = AppDB.verificar_usuario(telefono_alumno)
@@ -450,7 +483,9 @@ def main(page: ft.Page):
                 page.update()
 
             def cerrar_sesion(e):
-                page.client_storage.clear()
+                try:
+                    page.client_storage.clear()
+                except: pass
                 page.session.clear()
                 page.go("/login")
 
@@ -485,9 +520,7 @@ def main(page: ft.Page):
                 ft.TextButton("Cerrar Sesión", icon=ft.icons.LOGOUT, style=ft.ButtonStyle(color=ft.colors.RED_400), on_click=cerrar_sesion)
             ]))
 
-        # =========================================================================
-        # 5. PANEL ADMIN
-        # =========================================================================
+        # 9. ADMIN PANEL
         elif page.route == "/admin":
             fecha_activa = [datetime.date.today()]
             txt_fecha_top = ft.Text(fecha_activa[0].strftime("%Y-%m-%d"), size=18, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO)
@@ -688,33 +721,10 @@ def main(page: ft.Page):
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
-
-    # --- INICIALIZADOR CON MEMORIA PERSISTENTE ---
-    def iniciar_app():
-        user_phone = page.client_storage.get("user_phone")
-        esperando_pago = page.client_storage.get("esperando_pago")
-        
-        if user_phone:
-            page.session.set("user_phone", user_phone)
-            page.session.set("user_name", page.client_storage.get("user_name"))
-            
-            if esperando_pago:
-                page.session.set("monto_pendiente", page.client_storage.get("monto_pendiente"))
-                page.go("/pago/verificando")
-                return
-            
-            usuario = AppDB.verificar_usuario(user_phone)
-            if usuario:
-                if str(usuario.get('active_package', '')).lower().strip() == 'pagado':
-                    page.go("/servicios")
-                else:
-                    page.go("/paquetes")
-                return
-        
-        page.go("/login")
-
-    # Ejecutamos el inicializador en lugar del page.go("/login") directo
-    iniciar_app()
+    
+    # Se inicializa el ruteo. Si Flet detecta una URL (ej. volver del banco), 
+    # se inyecta y pasa primero por el bloque "1. HIDRATAR SESIÓN" de arriba.
+    page.go(page.route if page.route else "/")
 
 if __name__ == "__main__":
     import os
