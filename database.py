@@ -4,7 +4,7 @@ import urllib3
 # Apagamos advertencias del firewall
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# --- LLAVES DE TU PROYECTO 2 (Webhook) ---
+# --- LLAVES DE TU PROYECTO (Webhook) ---
 SUPABASE_URL = "https://pmbrvgmvvrxtsmkmqfcg.supabase.co" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtYnJ2Z212dnJ4dHNta21xZmNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODQ0MTU0MCwiZXhwIjoyMDk0MDE3NTQwfQ.eIsHMUycrCQhUciappBMlHGuThZhbbC-3ys1vfKfTJg"
 
@@ -62,7 +62,7 @@ class AppDB:
         return response.status_code == 201
 
     # ---------------------------------------------------------
-    # CLASES Y CALENDARIO (classes y services)
+    # CLASES Y CALENDARIO (classes)
     # ---------------------------------------------------------
     @staticmethod
     def get_reservation_count(class_id):
@@ -79,11 +79,10 @@ class AppDB:
 
     @staticmethod
     def obtener_clases(servicio, fecha):
-        """Obtiene las clases del día buscando directo en service_name"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {
-            "select": "*", # <-- Ya no hacemos el JOIN viejo con services
-            "service_name": f"eq.{servicio}", # <-- Buscamos directamente aquí
+            "select": "*", 
+            "service_name": f"eq.{servicio}", 
             "class_date": f"eq.{fecha}",
             "is_blocked": "is.false",
             "order": "start_time.asc"
@@ -107,11 +106,9 @@ class AppDB:
     # ---------------------------------------------------------
     @staticmethod
     def obtener_reservas_usuario(telefono):
-        """Obtiene las reservas del usuario leyendo el service_name"""
         url = f"{SUPABASE_URL}/rest/v1/reservations"
         params = {
-            # <-- Solo hacemos JOIN con classes, ya no con services
-            "select": "id, status, classes(class_date, start_time, service_name)", 
+            "select": "id, status, class_id, classes(class_date, start_time, service_name)", 
             "client_phone": f"eq.{telefono}",
             "order": "id.desc"
         }
@@ -120,12 +117,13 @@ class AppDB:
         if response.status_code == 200:
             for r in response.json():
                 clase_info = r.get("classes") or {}
-                
                 estado_ui = "futura" if r.get("status") == "activa" else "cancelada"
                 reservas_formateadas.append({
                     "id": r["id"],
-                    # <-- Leemos el nombre directo de la clase
+                    "class_id": r.get("class_id"), 
                     "servicio": clase_info.get("service_name", "Clase"), 
+                    "class_date": clase_info.get('class_date', ''),
+                    "start_time": clase_info.get('start_time', ''),
                     "fecha": f"{clase_info.get('class_date', '')}, {clase_info.get('start_time', '')}",
                     "estado": estado_ui
                 })
@@ -156,19 +154,17 @@ class AppDB:
 
     @staticmethod
     def asignar_creditos(telefono, cantidad_creditos):
-        """Fuerza la actualización de créditos desde la app si el webhook falla"""
         url = f"{SUPABASE_URL}/rest/v1/clients"
         params = {"phone": f"eq.{telefono}"}
         data = {"credits": cantidad_creditos}
         response = requests.patch(url, headers=HEADERS, params=params, json=data, verify=False)
         return response.status_code in [200, 204]
 
-# ---------------------------------------------------------
+    # ---------------------------------------------------------
     # ADMIN Y CREACIÓN DE CLASES
     # ---------------------------------------------------------
     @staticmethod
     def obtener_servicios():
-        """Obtiene los servicios disponibles para el panel admin"""
         url = f"{SUPABASE_URL}/rest/v1/services"
         response = requests.get(url, headers=HEADERS, verify=False)
         if response.status_code == 200:
@@ -177,11 +173,7 @@ class AppDB:
 
     @staticmethod
     def crear_clase(service_name, fecha, hora, instructor, cupo):
-        """Publica una nueva clase en la base de datos"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
-        
-        # OJO: Asumimos que la columna en tu tabla 'classes' que se relaciona 
-        # con el servicio se llama 'service_id'. Si se llama distinto, cámbialo aquí.
         data = {
             "service_name": service_name, 
             "class_date": fecha,
@@ -190,34 +182,13 @@ class AppDB:
             "capacity": int(cupo),
             "is_blocked": False
         }
-        
         response = requests.post(url, headers=HEADERS, json=data, verify=False)
+        if response.status_code != 201:
+            print(f"ERROR DE SUPABASE: {response.text}")
         return response.status_code == 201
-
-    @staticmethod
-    def crear_clase(service_name, fecha, hora, instructor, cupo):
-        url = f"{SUPABASE_URL}/rest/v1/classes"
-        data = {
-            "service_name": service_name, # (O el nombre de tu columna)
-            "class_date": fecha,
-            "start_time": hora,
-            "instructor": instructor,
-            "capacity": int(cupo),
-            "is_blocked": False
-        }
-        response = requests.post(url, headers=HEADERS, json=data, verify=False)
-        
-        # --- AGREGA ESTA LÍNEA PARA VER EL ERROR REAL ---
-        print(f"ERROR DE SUPABASE: {response.text}")
-        # ------------------------------------------------
-        
-        return response.status_code == 201
-
-# --- NUEVAS FUNCIONES PARA ADMIN ---
 
     @staticmethod
     def verificar_disponibilidad(fecha, hora):
-        """Revisa si ya hay CUALQUIER clase programada en esa fecha y hora"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {
             "class_date": f"eq.{fecha}",
@@ -225,12 +196,10 @@ class AppDB:
             "select": "*"
         }
         response = requests.get(url, headers=HEADERS, params=params, verify=False)
-        # Si devuelve algo, es que el horario ya está ocupado
         return len(response.json()) > 0
 
     @staticmethod
     def actualizar_clase(clase_id, service_name, fecha, hora, instructor, cupo):
-        """Actualiza una clase existente"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"id": f"eq.{clase_id}"}
         data = {
@@ -245,7 +214,6 @@ class AppDB:
 
     @staticmethod
     def obtener_todas_las_clases_dia(fecha):
-        """Trae todas las clases de un día para que el admin las gestione"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {
             "class_date": f"eq.{fecha}",
@@ -255,11 +223,10 @@ class AppDB:
         return response.json() if response.status_code == 200 else []
 
     # ---------------------------------------------------------
-    # SISTEMA DE BLOQUEO DE DÍAS (NUEVO)
+    # SISTEMA DE BLOQUEO DE DÍAS 
     # ---------------------------------------------------------
     @staticmethod
     def bloquear_dia(fecha):
-        """Bloquea un día entero creando un registro especial"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         data = {
             "service_name": "Bloqueo",
@@ -274,7 +241,6 @@ class AppDB:
 
     @staticmethod
     def obtener_dias_bloqueados():
-        """Trae la lista de todos los días que el estudio está cerrado"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"is_blocked": "is.true", "select": "id, class_date", "order": "class_date.asc"}
         response = requests.get(url, headers=HEADERS, params=params, verify=False)
@@ -282,7 +248,6 @@ class AppDB:
 
     @staticmethod
     def desbloquear_dia(bloqueo_id):
-        """Elimina el bloqueo de un día"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"id": f"eq.{bloqueo_id}"}
         response = requests.delete(url, headers=HEADERS, params=params, verify=False)
@@ -290,7 +255,6 @@ class AppDB:
 
     @staticmethod
     def es_dia_bloqueado(fecha):
-        """Revisa si una fecha específica está marcada como cerrada"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"class_date": f"eq.{fecha}", "is_blocked": "is.true", "select": "id"}
         response = requests.get(url, headers=HEADERS, params=params, verify=False)
@@ -298,7 +262,6 @@ class AppDB:
 
     @staticmethod
     def eliminar_clase(clase_id):
-        """Elimina una clase por completo de la base de datos"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"id": f"eq.{clase_id}"}
         response = requests.delete(url, headers=HEADERS, params=params, verify=False)
@@ -306,9 +269,38 @@ class AppDB:
 
     @staticmethod
     def obtener_agenda_rango(fecha_inicio, fecha_fin):
-        """Trae las clases en un rango de fechas ordenadas cronológicamente"""
         url = f"{SUPABASE_URL}/rest/v1/classes"
-        # Usamos query string para enviar múltiples filtros de class_date
         query = f"class_date=gte.{fecha_inicio}&class_date=lte.{fecha_fin}&order=class_date.asc,start_time.asc"
         response = requests.get(f"{url}?{query}", headers=HEADERS, verify=False)
         return response.json() if response.status_code == 200 else []
+
+    # ---------------------------------------------------------
+    # NUEVO: OBTENER ALUMNOS POR CLASE
+    # ---------------------------------------------------------
+    @staticmethod
+    def obtener_alumnos_clase(class_id):
+        """
+        Busca todos los alumnos que tienen una reserva 'activa' (futura) 
+        en una clase específica y devuelve sus nombres y estado.
+        """
+        try:
+            # 1. Buscamos los teléfonos en la tabla de reservas
+            url_res = f"{SUPABASE_URL}/rest/v1/reservations"
+            params_res = {
+                "class_id": f"eq.{class_id}",
+                "status": "eq.activa",
+                "select": "client_phone"
+            }
+            resp_res = requests.get(url_res, headers=HEADERS, params=params_res, verify=False)
+            
+            if resp_res.status_code != 200:
+                return []
+                
+            # Extraemos la lista de teléfonos
+            telefonos = [r.get("client_phone") for r in resp_res.json() if r.get("client_phone")]
+            
+            # 2. Si hay inscritos, buscamos sus datos en la tabla de clientes
+            alumnos_detalles = []
+            if telefonos:
+                telefonos_str = ",".join(telefonos)
+                url_cli = f"{SUPABASE_URL}/rest/v1/clients"
