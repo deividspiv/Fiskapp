@@ -179,7 +179,6 @@ def main(page: ft.Page):
                 ft.Text("Método de pago", size=14, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO_DARK), ft.Container(height=10), 
                 btn_bbva,
                 ft.Container(height=15), 
-                # Botón de efectivo restaurado
                 ft.Container(
                     content=ft.Row([ft.Icon(ft.icons.MONEY, color=COLOR_TEXTO_OSCURO), ft.Text("Pagar en Recepción", color=COLOR_TEXTO_OSCURO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), 
                     bgcolor=COLOR_BG_CLARO, padding=15, border_radius=12, 
@@ -257,7 +256,7 @@ def main(page: ft.Page):
                 ft.Container(height=25), servicios_ui, ft.Container(height=25), dias_ui, ft.Container(height=25), ft.Text("Horarios Disponibles", weight="bold"), horarios_ui
             ]))
             
-        # 4.5 PERFIL (Intacto)
+        # 4.5 PERFIL
         elif page.route == "/perfil":
             telefono_alumno = page.session.get("user_phone")
             usuario = AppDB.verificar_usuario(telefono_alumno)
@@ -271,7 +270,7 @@ def main(page: ft.Page):
             ]))
 
         # =========================================================================
-        # 5. ADMIN (CORRECCIÓN DE CALENDARIOS)
+        # 5. ADMIN (CORRECCIÓN Y REESTRUCTURACIÓN DE DISEÑO)
         # =========================================================================
         elif page.route == "/admin":
             fecha_activa = [datetime.date.today()]
@@ -279,10 +278,17 @@ def main(page: ft.Page):
             modo_agenda = ["30"]
             
             opciones_servicios = [ft.dropdown.Option(s["name"]) for s in AppDB.obtener_servicios()]
-            drop_serv = ft.Dropdown(label="Servicio", options=opciones_servicios, border_color=COLOR_RESPIRO)
-            drop_hora = ft.Dropdown(label="Horario", options=[ft.dropdown.Option("08:00 AM"), ft.dropdown.Option("09:15 AM"), ft.dropdown.Option("06:30 PM")], border_color=COLOR_RESPIRO)
-            txt_inst, txt_cupo = ft.TextField(label="Instructor", value="Staff"), ft.TextField(label="Cupo", value="10", width=100)
-            lista_agenda, lista_bloqueos = ft.ListView(expand=True, spacing=10), ft.ListView(expand=True, spacing=10)
+            
+            # --- CAMPOS TAB CREAR ---
+            # Se ha agregado 'expand=True' a varios campos para que aprovechen el ancho disponible
+            drop_serv = ft.Dropdown(label="Servicio", options=opciones_servicios, border_color=COLOR_RESPIRO, expand=True)
+            drop_hora = ft.Dropdown(label="Horario", options=[ft.dropdown.Option("08:00 AM"), ft.dropdown.Option("09:15 AM"), ft.dropdown.Option("06:30 PM")], border_color=COLOR_RESPIRO, expand=True)
+            txt_inst = ft.TextField(label="Instructor", value="Staff", expand=True)
+            txt_cupo = ft.TextField(label="Cupo", value="10", width=100)
+            
+            # --- LISTAS ---
+            lista_agenda = ft.ListView(expand=True, spacing=10)
+            lista_bloqueos = ft.ListView(expand=True, spacing=10)
 
             def recargar_listas():
                 lista_agenda.controls.clear()
@@ -294,7 +300,8 @@ def main(page: ft.Page):
                 
                 lista_bloqueos.controls.clear()
                 for b in AppDB.obtener_dias_bloqueados():
-                    lista_bloqueos.controls.append(ft.Container(content=ft.Row([ft.Icon(ft.icons.BLOCK, color="red"), ft.Text(b['class_date']), ft.Container(expand=True), ft.IconButton(ft.icons.DELETE, on_click=lambda e, bid=b['id']: (AppDB.desbloquear_dia(bid), recargar_listas()))]), bgcolor="white", padding=15, border_radius=10))
+                    lista_bloqueos.controls.append(ft.Container(content=ft.Row([ft.Icon(ft.icons.BLOCK, color="red"), ft.Text(b['class_date'], weight="bold"), ft.Container(expand=True), ft.IconButton(ft.icons.DELETE, on_click=lambda e, bid=b['id']: (AppDB.desbloquear_dia(bid), recargar_listas()))]), bgcolor="white", padding=15, border_radius=10))
+                
                 page.update()
 
             def al_cambiar_fecha_admin(e):
@@ -304,7 +311,6 @@ def main(page: ft.Page):
                     modo_agenda[0] = "dia"
                     recargar_listas()
 
-            # Calendarios con método universal .pick_date()
             dp_admin = ft.DatePicker(on_change=al_cambiar_fecha_admin)
             page.overlay.append(dp_admin)
 
@@ -315,18 +321,70 @@ def main(page: ft.Page):
 
             txt_fecha_bloqueo = ft.TextField(label="Fecha a bloquear", read_only=True, expand=True)
             def al_cambio_bloqueo(e):
-                if dp_bloqueo.value: txt_fecha_bloqueo.value = dp_bloqueo.value.strftime("%Y-%m-%d"); page.update()
+                if dp_bloqueo.value: 
+                    txt_fecha_bloqueo.value = dp_bloqueo.value.strftime("%Y-%m-%d")
+                    page.update()
             
             dp_bloqueo = ft.DatePicker(on_change=al_cambio_bloqueo)
             page.overlay.append(dp_bloqueo)
 
-            tab_crear = ft.Tab(text="Crear", content=ft.Container(padding=20, content=ft.Column([drop_serv, drop_hora, ft.Row([txt_inst, txt_cupo]), ft.ElevatedButton("Publicar", bgcolor=COLOR_RESPIRO, color="white", width=float('inf'), on_click=accion_publicar)])))
-            tab_agenda = ft.Tab(text="Agenda", content=ft.Container(padding=20, content=lista_agenda))
-            tab_bloqueos = ft.Tab(text="Cierres", content=ft.Container(padding=20, content=ft.Column([ft.Row([txt_fecha_bloqueo, ft.IconButton(ft.icons.CALENDAR_MONTH, on_click=lambda _: dp_bloqueo.pick_date())]), ft.ElevatedButton("Bloquear", bgcolor="red", color="white", width=float('inf'), on_click=lambda _: (AppDB.bloquear_dia(txt_fecha_bloqueo.value), recargar_listas()))])))
+            # --- TABS CORREGIDOS ---
+            # Contenedores expandibles para que el contenido no se pierda o colapse
+            tab_crear = ft.Tab(
+                text="Crear", 
+                content=ft.Container(
+                    padding=20, 
+                    content=ft.Column([
+                        ft.Row([drop_serv]),
+                        ft.Row([drop_hora]),
+                        ft.Row([txt_inst, txt_cupo]), 
+                        ft.Container(height=10),
+                        ft.ElevatedButton("Publicar", bgcolor=COLOR_RESPIRO, color="white", width=float('inf'), height=50, on_click=accion_publicar)
+                    ])
+                )
+            )
+            
+            tab_agenda = ft.Tab(
+                text="Agenda", 
+                content=ft.Container(
+                    padding=20, 
+                    content=ft.Column([lista_agenda], expand=True)
+                )
+            )
+            
+            # Se ha agregado 'lista_bloqueos' al contenido (faltaba en la versión anterior)
+            tab_bloqueos = ft.Tab(
+                text="Cierres", 
+                content=ft.Container(
+                    padding=20, 
+                    content=ft.Column([
+                        ft.Row([txt_fecha_bloqueo, ft.IconButton(ft.icons.CALENDAR_MONTH, icon_color=COLOR_RESPIRO, on_click=lambda _: dp_bloqueo.pick_date())]), 
+                        ft.ElevatedButton("Bloquear Día Completo", bgcolor=ft.colors.RED_700, color="white", width=float('inf'), height=50, on_click=lambda _: (AppDB.bloquear_dia(txt_fecha_bloqueo.value), recargar_listas())),
+                        ft.Container(height=15),
+                        ft.Text("Días actualmente cerrados:", weight="bold", color=COLOR_TEXTO_OSCURO),
+                        lista_bloqueos
+                    ], expand=True)
+                )
+            )
 
             page.views.append(ft.View("/admin", bgcolor=COLOR_BG_CLARO, padding=0, controls=[
-                ft.Container(bgcolor="white", padding=20, content=ft.Row([ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/login")), ft.Text("Admin", size=22, weight="bold"), ft.Container(expand=True), txt_fecha_top, ft.IconButton(ft.icons.CALENDAR_MONTH, on_click=lambda _: dp_admin.pick_date())])),
-                ft.Tabs(expand=True, tabs=[tab_crear, tab_agenda, tab_bloqueos])
+                ft.Container(
+                    bgcolor="white", padding=20, 
+                    content=ft.Row([
+                        ft.IconButton(ft.icons.ARROW_BACK, icon_color=COLOR_TEXTO_OSCURO, on_click=lambda _: page.go("/login")), 
+                        ft.Text("Admin Panel", size=22, weight="bold", color=COLOR_TEXTO_OSCURO), 
+                        ft.Container(expand=True), 
+                        txt_fecha_top, 
+                        ft.IconButton(ft.icons.CALENDAR_MONTH, icon_color=COLOR_RESPIRO, on_click=lambda _: dp_admin.pick_date())
+                    ])
+                ),
+                ft.Tabs(
+                    expand=True, 
+                    selected_index=0,
+                    tabs=[tab_crear, tab_agenda, tab_bloqueos],
+                    indicator_color=COLOR_RESPIRO,
+                    label_color=COLOR_RESPIRO_DARK
+                )
             ]))
             recargar_listas()
 
