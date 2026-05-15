@@ -4,10 +4,9 @@ from pagos import generar_enlace_pago
 import time
 import datetime
 
-# --- PALETA DE COLORES "RESPIRO" ---
-# COLOR ACTUALIZADO: Café más fuerte
-COLOR_RESPIRO = "#998266"
-COLOR_RESPIRO_DARK = "#7a6852"
+# --- PALETA DE COLORES "RESPIRO" (RESTAURADA) ---
+COLOR_RESPIRO = "#a3968d"
+COLOR_RESPIRO_DARK = "#8e8279"
 COLOR_CREMA_BOTON = "#dfd0c1"
 COLOR_BG_CLARO = "#f4f2f1"
 COLOR_TEXTO_OSCURO = "#4a4a4a"
@@ -38,7 +37,7 @@ def main(page: ft.Page):
                         pass
                     
                     monto = page.session.get("monto_pendiente") or monto_guardado or "650"
-                    # CRÉDITOS ACTUALIZADOS (Ej. 1000 = 30 clases)
+                    # Créditos Deluxe corregidos a 30
                     nuevos_creditos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 8)
                     
                     AppDB.asignar_creditos(telefono, nuevos_creditos)
@@ -224,21 +223,15 @@ def main(page: ft.Page):
             estado_ui = ft.Container(content=ft.Column([ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4), ft.Container(height=20), ft.Text("Aprobando automáticamente...", size=16, color=COLOR_RESPIRO_DARK)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, height=300)
             
             def auto_check_payment():
-                monto = page.session.get("monto_pendiente")
                 telefono_alumno = page.session.get("user_phone")
-                if not telefono_alumno:
-                    return
-
+                if not telefono_alumno: return
                 for _ in range(60): 
-                    if page.route != "/pago/verificando":
-                        break 
+                    if page.route != "/pago/verificando": break 
                     time.sleep(2)
                     try:
-                        usuario = AppDB.verificar_usuario(telefono_alumno)
-                        if usuario and str(usuario.get('active_package', '')).lower().strip() == 'pagado':
-                            if usuario.get('credits', 0) <= 0 and monto:
-                                creditos_nuevos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 0)
-                                AppDB.asignar_creditos(telefono_alumno, creditos_nuevos)
+                        u = AppDB.verificar_usuario(telefono_alumno)
+                        if u and str(u.get('active_package', '')).lower().strip() == 'pagado':
+                            sync_creditos_silencioso(telefono_alumno)
                             page.session.set("monto_pendiente", "")
                             page.go("/servicios") 
                             return
@@ -248,20 +241,16 @@ def main(page: ft.Page):
             page.run_task(auto_check_payment)
 
             def verificar_estado_pago_manual(e):
-                monto = page.session.get("monto_pendiente")
                 telefono_alumno = page.session.get("user_phone")
-                usuario = AppDB.verificar_usuario(telefono_alumno)
-                if usuario and str(usuario.get('active_package', '')).lower().strip() == 'pagado':
-                    if usuario.get('credits', 0) <= 0 and monto:
-                        AppDB.asignar_creditos(telefono_alumno, {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 0))
-                    page.session.set("monto_pendiente", "")
-                    page.go("/servicios")
+                sync_creditos_silencioso(telefono_alumno)
+                page.session.set("monto_pendiente", "")
+                page.go("/servicios")
 
             btn_accion = ft.ElevatedButton("Comprobar Manualmente", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago_manual)
             page.views.append(ft.View("/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Container(height=50), ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion]))
 
         # =========================================================================
-        # 4. SERVICIOS Y AGENDA ALUMNO (NUEVA LÓGICA DE DÍA ÚNICO)
+        # 4. SERVICIOS Y AGENDA ALUMNO (LÓGICA DE DÍA ÚNICO)
         # =========================================================================
         elif page.route == "/servicios":
             telefono_alumno = page.session.get("user_phone")
@@ -286,14 +275,12 @@ def main(page: ft.Page):
                 horarios_ui.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
                 page.update()
 
-                # Leemos TODAS las reservas del usuario para bloquear días
                 mis_reservas = AppDB.obtener_reservas_usuario(telefono_alumno)
                 fechas_reservadas_limpias = [str(r.get("class_date") or r.get("fecha", "")).split(" ")[0] for r in mis_reservas if r.get("estado", "").lower() == "futura"]
                 clases_agendadas = [r.get("class_id") for r in mis_reservas if r.get("estado", "").lower() == "futura"]
 
                 servicios_ui.controls.clear()
-                nombres_servicios = ["Pilates", "Yoga", "Ejercicios Funcionales"]
-                for serv in nombres_servicios:
+                for serv in ["Pilates", "Yoga", "Ejercicios Funcionales"]:
                     es_activo = (serv == vista_estado["servicio_activo"])
                     servicios_ui.controls.append(
                         ft.Container(
@@ -313,17 +300,14 @@ def main(page: ft.Page):
                     bg_color = COLOR_RESPIRO if es_dia_seleccionado else COLOR_TEXTO_BLANCO
                     text_color = COLOR_TEXTO_BLANCO if es_dia_seleccionado else COLOR_TEXTO_OSCURO
                     
-                    # Verificamos si este día exacto ya está reservado
                     dia_str = fecha_iter.strftime("%Y-%m-%d")
                     tiene_reserva_hoy = dia_str in fechas_reservadas_limpias
 
-                    # Contenido de la píldora del día
                     col_dia = [
                         ft.Text(nombres_dias[fecha_iter.weekday()], size=14, color=text_color, weight=ft.FontWeight.W_500),
                         ft.Text(str(fecha_iter.day), size=20, color=text_color, weight=ft.FontWeight.BOLD),
                     ]
                     
-                    # Si ya tiene reserva, le ponemos un puntito indicador
                     if tiene_reserva_hoy:
                         col_dia.append(ft.Icon(ft.icons.CHECK_CIRCLE, color=text_color, size=12))
                     else:
@@ -345,7 +329,6 @@ def main(page: ft.Page):
                         content=ft.Column([
                             ft.Icon(ft.icons.NIGHTLIGHT_ROUND, size=50, color=COLOR_RESPIRO),
                             ft.Text("Estudio Cerrado", size=20, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
-                            ft.Text("Tómate un descanso. Nos vemos pronto.", text_align=ft.TextAlign.CENTER, color=COLOR_RESPIRO_DARK)
                         ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                         bgcolor=COLOR_TEXTO_BLANCO, padding=40, border_radius=15, width=float('inf')
                     ))
@@ -354,7 +337,7 @@ def main(page: ft.Page):
                     dia_ya_reservado = fecha_str in fechas_reservadas_limpias
 
                     if not clases_del_dia:
-                        horarios_ui.controls.append(ft.Text(f"No hay clases de {vista_estado['servicio_activo']} programadas para esta fecha.", color=COLOR_RESPIRO_DARK))
+                        horarios_ui.controls.append(ft.Text(f"No hay clases de {vista_estado['servicio_activo']} programadas.", color=COLOR_RESPIRO_DARK))
 
                     for h in clases_del_dia:
                         is_full = h["cupo"] <= 0
@@ -366,7 +349,6 @@ def main(page: ft.Page):
                             text_btn_color = COLOR_TEXTO_BLANCO
                             accion_btn = lambda _: page.go("/perfil") 
                         elif dia_ya_reservado:
-                            # Bloqueamos el resto de botones de este día
                             btn_color = "#E5E5EA"
                             btn_text = "Día Reservado"
                             text_btn_color = COLOR_RESPIRO_DARK
@@ -380,7 +362,7 @@ def main(page: ft.Page):
                         horarios_ui.controls.append(
                             ft.Container(
                                 content=ft.Row([
-                                    ft.Column([ft.Text(h["hora"], size=18, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Text(f"Prof: {h['instructor']}", size=13, color=COLOR_RESPIRO_DARK), ft.Text(f"Lugares: {h['cupo']}", size=12, color=COLOR_RESPIRO if not is_full else ft.colors.RED_400)], spacing=2),
+                                    ft.Column([ft.Text(h["hora"], size=18, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Text(f"Prof: {h['instructor']}", size=13, color=COLOR_RESPIRO_DARK)], spacing=2),
                                     ft.Container(expand=True), 
                                     ft.Container(content=ft.Text(btn_text, weight=ft.FontWeight.BOLD, color=text_btn_color, size=13), bgcolor=btn_color, padding=ft.padding.symmetric(horizontal=20, vertical=10), border_radius=20, on_click=accion_btn)
                                 ]), bgcolor=COLOR_TEXTO_BLANCO, padding=20, border_radius=15, shadow=ft.BoxShadow(blur_radius=10, color="#0A000000", offset=ft.Offset(0, 4))
@@ -400,22 +382,10 @@ def main(page: ft.Page):
                 usuario_actual = AppDB.verificar_usuario(telefono_alumno)
                 creditos_actuales = usuario_actual.get('credits', 0) if usuario_actual else 0
                 if creditos_actuales <= 0:
-                    snack = ft.SnackBar(ft.Text("No tienes clases disponibles. Redirigiendo a la tienda..."), bgcolor=ft.colors.ORANGE_500)
-                    page.overlay.append(snack)
-                    snack.open = True
-                    page.update()
-                    time.sleep(1.5)
                     page.go("/paquetes")
                     return
-                exito = AppDB.reservar_clase(telefono_alumno, clase["id"])
-                if exito:
-                    snack = ft.SnackBar(ft.Text("¡Reserva confirmada! Se descontó 1 clase."), bgcolor=ft.colors.GREEN_600)
+                if AppDB.reservar_clase(telefono_alumno, clase["id"]):
                     recargar_pantalla() 
-                else:
-                    snack = ft.SnackBar(ft.Text("Hubo un error al reservar. Intenta de nuevo."), bgcolor=ft.colors.RED_500)
-                page.overlay.append(snack)
-                snack.open = True
-                page.update()
 
             recargar_pantalla()
 
@@ -431,10 +401,7 @@ def main(page: ft.Page):
                 controls=[
                     ft.Container(height=10),
                     ft.Row([
-                        ft.Column([
-                            ft.Text(f"Hola, {primer_nombre} 👋", size=26, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), 
-                            ft.Text("Reserva tu próxima clase", size=15, color=COLOR_RESPIRO_DARK)
-                        ], spacing=0),
+                        ft.Column([ft.Text(f"Hola, {primer_nombre} 👋", size=26, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Text("Reserva tu próxima clase", size=15, color=COLOR_RESPIRO_DARK)], spacing=0),
                         ft.Container(expand=True), avatar_perfil
                     ]),
                     ft.Container(height=25), servicios_ui, ft.Container(height=25), dias_ui, ft.Container(height=25),
@@ -444,7 +411,7 @@ def main(page: ft.Page):
             ))
             
         # =========================================================================
-        # 4.5 HISTORIAL Y PERFIL (RECARGA INSTANTÁNEA MEJORADA)
+        # 4.5 HISTORIAL Y PERFIL (RECARGA INSTANTÁNEA)
         # =========================================================================
         elif page.route == "/perfil":
             telefono_alumno = page.session.get("user_phone")
@@ -470,12 +437,10 @@ def main(page: ft.Page):
                         AppDB.asignar_creditos(telefono_alumno, nuevos_creditos)
                     snack = ft.SnackBar(ft.Text("¡Tus clases han sido sincronizadas!"), bgcolor=ft.colors.GREEN_600)
                 else:
-                    snack = ft.SnackBar(ft.Text("Aún no detectamos tu pago en la base de datos."), bgcolor=ft.colors.ORANGE_600)
+                    snack = ft.SnackBar(ft.Text("Aún no detectamos tu pago."), bgcolor=ft.colors.ORANGE_600)
                 
                 page.overlay.append(snack)
                 snack.open = True
-                
-                # FORZAMOS RECARGA VISUAL DE LA PANTALLA
                 page.views.pop()
                 page.go("/perfil") 
 
@@ -506,12 +471,10 @@ def main(page: ft.Page):
                     creditos_previos = u_actual.get('credits', 0) if u_actual else 0
                     AppDB.asignar_creditos(telefono_alumno, creditos_previos + 1)
                 
-                msg = "Sesión cancelada. Se aplicó la penalidad de 12hrs." if penalizar else "Sesión cancelada. Se devolvió 1 clase a tu cuenta."
-                snack = ft.SnackBar(ft.Text(msg), bgcolor=ft.colors.ORANGE_600 if penalizar else ft.colors.GREEN_600)
+                snack = ft.SnackBar(ft.Text("Sesión cancelada."), bgcolor=ft.colors.GREEN_600)
                 page.overlay.append(snack)
                 snack.open = True
                 
-                # RECARGA FORZADA INSTANTÁNEA (Evita salir y volver a entrar manualmente)
                 page.views.pop()
                 page.go("/perfil") 
                 
@@ -538,11 +501,10 @@ def main(page: ft.Page):
                         except ValueError:
                             dt_clase = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
                             
-                        # CORRECCIÓN DE HORA PARA MÉXICO (UTC - 6 HORAS)
                         ahora_mexico = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
                         horas_diff = (dt_clase - ahora_mexico).total_seconds() / 3600
                         
-                        if 0 < horas_diff <= 12:
+                        if horas_diff <= 12:
                             es_penalizable = True
                 except Exception as e:
                     print("Error calculando tiempo:", e)
@@ -550,15 +512,14 @@ def main(page: ft.Page):
                 aplica_penalizacion[0] = es_penalizable
                 
                 if es_penalizable:
-                    dlg_cancelar.content = ft.Text("Faltan menos de 12 horas para tu clase. Si cancelas ahora perderás esta clase según nuestra política.\n\n¿Deseas cancelarla de todos modos?", color=ft.colors.RED_600)
+                    dlg_cancelar.content = ft.Text("Faltan menos de 12 horas. Si cancelas perderás esta clase según nuestra política.\n\n¿Deseas cancelarla?", color=ft.colors.RED_600)
                 else:
-                    dlg_cancelar.content = ft.Text("¿Estás seguro de que deseas cancelar tu clase?\n\nTu crédito será devuelto automáticamente a tu perfil.")
+                    dlg_cancelar.content = ft.Text("¿Estás seguro de que deseas cancelar tu clase?\n\nTu crédito será devuelto automáticamente.")
                 
                 dlg_cancelar.open = True
                 page.update()
 
             lista_reservas_ui = ft.Column(spacing=15)
-            
             for res in mis_reservas:
                 is_futura = res.get("estado", "").lower() == "futura"
                 fila_superior = ft.Row([
@@ -570,13 +531,12 @@ def main(page: ft.Page):
                 
                 if is_futura:
                     btn_cancelar = ft.TextButton("Cancelar Clase", icon=ft.icons.CANCEL, style=ft.ButtonStyle(color=ft.colors.RED_400), on_click=lambda e, r=res: preparar_cancelacion(r))
-                    elementos_tarjeta.append(ft.Container(height=5))
                     elementos_tarjeta.append(ft.Row([ft.Container(expand=True), btn_cancelar]))
 
                 lista_reservas_ui.controls.append(ft.Container(content=ft.Column(elementos_tarjeta, spacing=5), bgcolor="white", padding=20, border_radius=15, shadow=ft.BoxShadow(blur_radius=5, color="#0A000000", offset=ft.Offset(0, 2))))
             
             if not mis_reservas: 
-                lista_reservas_ui.controls.append(ft.Text("Aún no tienes historial de reservas.", color=COLOR_RESPIRO_DARK))
+                lista_reservas_ui.controls.append(ft.Text("Aún no tienes historial.", color=COLOR_RESPIRO_DARK))
                 
             contenedor_reservas = ft.Container(content=lista_reservas_ui)
                 
@@ -610,8 +570,8 @@ def main(page: ft.Page):
                 btn_modo_30.bgcolor, btn_modo_30.color = "transparent", COLOR_RESPIRO
                 recargar_listas()
                 
-            btn_modo_30 = ft.ElevatedButton("30 Días", on_click=set_modo_30, bgcolor=COLOR_RESPIRO, color="white", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)))
-            btn_modo_dia = ft.ElevatedButton("Día Específico", on_click=set_modo_dia, bgcolor="transparent", color=COLOR_RESPIRO, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=8)))
+            btn_modo_30 = ft.ElevatedButton("30 Días", on_click=set_modo_30, bgcolor=COLOR_RESPIRO, color="white")
+            btn_modo_dia = ft.ElevatedButton("Día Específico", on_click=set_modo_dia, bgcolor="transparent", color=COLOR_RESPIRO)
 
             opciones_servicios = [ft.dropdown.Option(s["name"]) for s in AppDB.obtener_servicios()]
             drop_serv = ft.Dropdown(label="Servicio", options=opciones_servicios, border_color=COLOR_RESPIRO)
@@ -622,43 +582,9 @@ def main(page: ft.Page):
             lista_agenda = ft.ListView(expand=True, spacing=10)
             lista_bloqueos = ft.ListView(expand=True, spacing=10)
             
-            id_edicion = [None]
-            drop_serv_ed = ft.Dropdown(label="Servicio", options=opciones_servicios, border_color=COLOR_RESPIRO)
-            drop_hora_ed = ft.Dropdown(label="Horario", options=[ft.dropdown.Option("08:00 AM"), ft.dropdown.Option("09:15 AM"), ft.dropdown.Option("06:30 PM")], border_color=COLOR_RESPIRO)
-            
-            def guardar_edicion(e):
-                AppDB.actualizar_clase(id_edicion[0], drop_serv_ed.value, fecha_activa[0].strftime("%Y-%m-%d"), drop_hora_ed.value, "Staff", 10)
-                dlg_edicion.open = False
-                recargar_listas()
-                page.update()
-
-            dlg_edicion = ft.AlertDialog(title=ft.Text("Editar Clase", color=COLOR_RESPIRO), content=ft.Column([drop_serv_ed, drop_hora_ed], height=150), actions=[ft.TextButton("Cancelar", on_click=lambda _: setattr(dlg_edicion, 'open', False) or page.update()), ft.ElevatedButton("Guardar", bgcolor=COLOR_RESPIRO, color="white", on_click=guardar_edicion)])
-            page.overlay.append(dlg_edicion)
-
-            def abrir_edicion(clase):
-                id_edicion[0] = clase['id']
-                drop_serv_ed.value = clase['service_name']
-                drop_hora_ed.value = clase['start_time']
-                dlg_edicion.open = True
-                page.update()
-
-            def borrar_clase(cid):
-                AppDB.eliminar_clase(cid)
-                recargar_listas()
-                snack = ft.SnackBar(ft.Text("Clase eliminada del sistema."), bgcolor=ft.colors.RED_500)
-                page.overlay.append(snack)
-                snack.open = True
-                page.update()
-
             def recargar_listas():
                 f_str = fecha_activa[0].strftime("%Y-%m-%d")
-                
                 lista_agenda.controls.clear()
-                lista_agenda.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
-                page.update() 
-                
-                lista_agenda.controls.clear()
-                
                 if modo_agenda[0] == "30":
                     hoy_str = datetime.date.today().strftime("%Y-%m-%d")
                     fin_str = (datetime.date.today() + datetime.timedelta(days=30)).strftime("%Y-%m-%d")
@@ -666,124 +592,50 @@ def main(page: ft.Page):
                 else:
                     clases = AppDB.obtener_todas_las_clases_dia(f_str)
                 
-                if not clases: lista_agenda.controls.append(ft.Text("No hay clases programadas.", color=COLOR_RESPIRO_DARK))
-                
                 for c in clases:
                     if not c.get('is_blocked'):
-                        fecha_lbl = f"{c['class_date']} | " if modo_agenda[0] == "30" else ""
                         lista_agenda.controls.append(ft.Container(
                             content=ft.Row([
-                                ft.Column([ft.Text(f"{fecha_lbl}{c['start_time']} - {c['service_name']}", weight=ft.FontWeight.BOLD), ft.Text(f"Prof: {c['instructor']} | Cupo: {c.get('capacity', 10)}", size=12)], spacing=0),
+                                ft.Column([ft.Text(f"{c['start_time']} - {c['service_name']}", weight=ft.FontWeight.BOLD)]),
                                 ft.Container(expand=True), 
-                                ft.Row([
-                                    ft.IconButton(ft.icons.EDIT, icon_color=COLOR_RESPIRO, on_click=lambda e, curr=c: abrir_edicion(curr)),
-                                    ft.IconButton(ft.icons.DELETE, icon_color=ft.colors.RED_400, on_click=lambda e, cid=c['id']: borrar_clase(cid))
-                                ], spacing=0)
+                                ft.IconButton(ft.icons.DELETE, icon_color=ft.colors.RED_400, on_click=lambda e, cid=c['id']: (AppDB.eliminar_clase(cid), recargar_listas()))
                             ]), bgcolor=COLOR_TEXTO_BLANCO, padding=15, border_radius=10, border=ft.border.all(1, "#E5E5EA")
                         ))
                 
                 lista_bloqueos.controls.clear()
-                bloqueos = AppDB.obtener_dias_bloqueados()
-                if not bloqueos: lista_bloqueos.controls.append(ft.Text("No hay días cerrados programados.", color=COLOR_RESPIRO_DARK))
-                for b in bloqueos:
+                for b in AppDB.obtener_dias_bloqueados():
                     lista_bloqueos.controls.append(ft.Container(
-                        content=ft.Row([
-                            ft.Icon(ft.icons.BLOCK, color=ft.colors.RED_400), ft.Text(b['class_date'], weight=ft.FontWeight.BOLD),
-                            ft.Container(expand=True), ft.IconButton(ft.icons.DELETE, icon_color=ft.colors.RED_400, on_click=lambda e, bid=b['id']: borrar_bloqueo(bid))
-                        ]), bgcolor=COLOR_TEXTO_BLANCO, padding=15, border_radius=10
+                        content=ft.Row([ft.Icon(ft.icons.BLOCK, color=ft.colors.RED_400), ft.Text(b['class_date'], weight=ft.FontWeight.BOLD), ft.Container(expand=True), ft.IconButton(ft.icons.DELETE, icon_color=ft.colors.RED_400, on_click=lambda e, bid=b['id']: (AppDB.desbloquear_dia(bid), recargar_listas()))]), bgcolor=COLOR_TEXTO_BLANCO, padding=15, border_radius=10
                     ))
                 page.update()
-
-            def borrar_bloqueo(bid):
-                AppDB.desbloquear_dia(bid)
-                recargar_listas()
 
             def al_cambiar_fecha_admin(e):
                 if dp_admin.value:
                     fecha_activa[0] = dp_admin.value
                     txt_fecha_top.value = fecha_activa[0].strftime("%Y-%m-%d")
-                    set_modo_dia(None) 
-                    page.update()
+                    recargar_listas()
 
             dp_admin = ft.DatePicker(on_change=al_cambiar_fecha_admin)
             page.overlay.append(dp_admin)
 
             def accion_publicar_clase(e):
                 f_str = fecha_activa[0].strftime("%Y-%m-%d")
-                if AppDB.es_dia_bloqueado(f_str):
-                    snack = ft.SnackBar(ft.Text("¡Error! Este día está marcado como Cerrado."), bgcolor=ft.colors.RED_500)
-                    page.overlay.append(snack)
-                    snack.open = True
-                elif AppDB.verificar_disponibilidad(f_str, drop_hora.value):
-                    snack = ft.SnackBar(ft.Text("¡Horario ocupado! Revisa la agenda."), bgcolor=ft.colors.RED_500)
-                    page.overlay.append(snack)
-                    snack.open = True
-                elif drop_serv.value and drop_hora.value:
+                if drop_serv.value and drop_hora.value:
                     AppDB.crear_clase(drop_serv.value, f_str, drop_hora.value, txt_inst.value, txt_cupo.value)
-                    snack = ft.SnackBar(ft.Text("Clase creada."), bgcolor=ft.colors.GREEN_600)
-                    page.overlay.append(snack)
-                    snack.open = True
-                    drop_serv.value, drop_hora.value = None, None
                     recargar_listas()
-                page.update()
 
-            txt_fecha_bloqueo = ft.TextField(label="Fecha a bloquear", hint_text="Toca el calendario ->", read_only=True, expand=True, border_color=COLOR_RESPIRO)
-            def al_cambiar_fecha_bloqueo(e):
-                if dp_bloqueo.value:
-                    txt_fecha_bloqueo.value = dp_bloqueo.value.strftime("%Y-%m-%d")
-                    page.update()
-
-            dp_bloqueo = ft.DatePicker(on_change=al_cambiar_fecha_bloqueo, first_date=datetime.date.today())
+            dp_bloqueo = ft.DatePicker(on_change=lambda _: None, first_date=datetime.date.today())
             page.overlay.append(dp_bloqueo)
 
-            def accion_bloquear_dia(e):
-                f_str = txt_fecha_bloqueo.value
-                if f_str:
-                    if not AppDB.es_dia_bloqueado(f_str):
-                        AppDB.bloquear_dia(f_str)
-                        recargar_listas()
-                        snack = ft.SnackBar(ft.Text(f"El día {f_str} ha sido bloqueado."), bgcolor=ft.colors.GREEN_600)
-                        txt_fecha_bloqueo.value = ""
-                    else:
-                        snack = ft.SnackBar(ft.Text("Ese día ya está bloqueado."), bgcolor=ft.colors.ORANGE_500)
-                else:
-                    snack = ft.SnackBar(ft.Text("Por favor, selecciona una fecha en el calendario."), bgcolor=ft.colors.RED_500)
-                page.overlay.append(snack)
-                snack.open = True
-                page.update()
-
-            row_bloqueo = ft.Row([txt_fecha_bloqueo, ft.IconButton(ft.icons.CALENDAR_MONTH, icon_color=ft.colors.RED_400, icon_size=35, on_click=lambda _: dp_bloqueo.pick_date())])
-
-            recargar_listas()
-
-            tab_crear = ft.Tab(text="Crear", icon=ft.icons.ADD_BOX, content=ft.Container(padding=20, content=ft.Column([
-                ft.Text("Agendar Nueva Clase", size=18, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO),
-                ft.Container(height=10), drop_serv, drop_hora, ft.Row([txt_inst, txt_cupo]), ft.Container(height=20),
-                ft.ElevatedButton("Publicar", bgcolor=COLOR_RESPIRO, color="white", width=float('inf'), height=50, on_click=accion_publicar_clase)
-            ])))
-            
-            tab_agenda = ft.Tab(text="Agenda", icon=ft.icons.FORMAT_LIST_BULLETED, content=ft.Container(padding=20, content=ft.Column([
-                ft.Row([btn_modo_30, btn_modo_dia], spacing=10),
-                ft.Container(height=10),
-                lista_agenda
-            ])))
-
-            tab_bloqueos = ft.Tab(text="Cierres", icon=ft.icons.BLOCK, content=ft.Container(padding=20, content=ft.Column([
-                ft.Text("Días Inhábiles", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.RED_400),
-                ft.Text("Elige cualquier fecha futura para cerrar el estudio completo.", size=12, color=COLOR_RESPIRO_DARK),
-                ft.Container(height=10), row_bloqueo, ft.Container(height=10),
-                ft.ElevatedButton("Bloquear Fecha", bgcolor=ft.colors.RED_400, color="white", width=float('inf'), height=50, on_click=accion_bloquear_dia),
-                ft.Container(height=20), ft.Text("Próximos cierres:", weight=ft.FontWeight.BOLD), lista_bloqueos
-            ])))
+            tab_crear = ft.Tab(text="Crear", content=ft.Container(padding=20, content=ft.Column([drop_serv, drop_hora, ft.Row([txt_inst, txt_cupo]), ft.ElevatedButton("Publicar", bgcolor=COLOR_RESPIRO, color="white", width=float('inf'), height=50, on_click=accion_publicar_clase)])))
+            tab_agenda = ft.Tab(text="Agenda", content=ft.Container(padding=20, content=ft.Column([ft.Row([btn_modo_30, btn_modo_dia]), lista_agenda])))
+            tab_bloqueos = ft.Tab(text="Cierres", content=ft.Container(padding=20, content=ft.Column([ft.ElevatedButton("Seleccionar Fecha para Bloqueo", on_click=lambda _: dp_bloqueo.pick_date()), ft.ElevatedButton("Bloquear Día", bgcolor=ft.colors.RED_400, color="white", on_click=lambda _: (AppDB.bloquear_dia(dp_bloqueo.value.strftime("%Y-%m-%d")), recargar_listas())), lista_bloqueos])))
 
             page.views.append(ft.View("/admin", bgcolor=COLOR_BG_CLARO, padding=0, controls=[
-                ft.Container(bgcolor="white", padding=ft.padding.only(left=10, right=20, top=20, bottom=10), shadow=ft.BoxShadow(blur_radius=5, color="#1A000000"), content=ft.Row([
-                    ft.IconButton(ft.icons.ARROW_BACK, icon_color=COLOR_RESPIRO, on_click=lambda _: page.go("/login")), ft.Text("Admin", size=22, weight=ft.FontWeight.BOLD),
-                    ft.Container(expand=True), txt_fecha_top, 
-                    ft.IconButton(ft.icons.CALENDAR_MONTH, icon_color=COLOR_RESPIRO, on_click=lambda _: dp_admin.pick_date())
-                ])),
-                ft.Tabs(selected_index=0, animation_duration=300, unselected_label_color=COLOR_RESPIRO_DARK, label_color=COLOR_RESPIRO, indicator_color=COLOR_RESPIRO, expand=True, tabs=[tab_crear, tab_agenda, tab_bloqueos])
+                ft.Container(bgcolor="white", padding=20, content=ft.Row([ft.IconButton(ft.icons.ARROW_BACK, on_click=lambda _: page.go("/login")), ft.Text("Admin"), ft.Container(expand=True), txt_fecha_top, ft.IconButton(ft.icons.CALENDAR_MONTH, on_click=lambda _: dp_admin.pick_date())])),
+                ft.Tabs(expand=True, tabs=[tab_crear, tab_agenda, tab_bloqueos])
             ]))
+            recargar_listas()
 
         page.update()
 
