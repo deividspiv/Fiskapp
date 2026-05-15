@@ -16,12 +16,6 @@ def main(page: ft.Page):
     page.title = "Novum Pilates"
     page.theme_mode = ft.ThemeMode.LIGHT
     
-    # Variables de Sesión
-    page.session.set("is_logged_in", False)
-    page.session.set("has_active_package", False)
-    page.session.set("user_phone", "")
-    page.session.set("monto_pendiente", "") 
-
     # --- DIÁLOGO ADMIN ---
     admin_pwd_field = ft.TextField(label="Contraseña", password=True, can_reveal_password=True, border_radius=10, border_color=COLOR_RESPIRO, cursor_color=COLOR_RESPIRO)
     
@@ -104,11 +98,12 @@ def main(page: ft.Page):
                         if estado_paquete == 'pagado':
                             tiene_paquete_activo = True
 
-                    e.control.content = ft.Text("Continuar", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.W_600)
-                    e.control.update()
+                    # GUARDADO EN MEMORIA PERSISTENTE
+                    page.client_storage.set("user_phone", celular_field.value)
+                    page.client_storage.set("user_name", nombre_final)
+                    
                     page.session.set("user_phone", celular_field.value)
                     page.session.set("user_name", nombre_final)
-                    page.session.set("has_active_package", tiene_paquete_activo)
                     page.go("/servicios" if tiene_paquete_activo else "/paquetes")
 
             page.views.append(ft.View(
@@ -137,14 +132,18 @@ def main(page: ft.Page):
                 ft.Container(height=450, content=ft.ListView(lista_tarjetas, horizontal=True, spacing=15))
             ]))
 
-        # 3. PAGOS Y VERIFICACIÓN (Con Auto-Verificación Polling)
+        # 3. PAGOS Y VERIFICACIÓN
         elif page.route.startswith("/pago/") and not page.route.endswith("/verificando"):
             monto = page.route.split("/")[2]
-            page.session.set("monto_pendiente", monto)
             
             def pagar_bbva(e):
                 telefono, nombre = page.session.get("user_phone"), page.session.get("user_name")
                 AppDB.crear_registro_pago(telefono, monto)
+                
+                # GUARDAMOS ESTADO DEL PAGO POR SI SE RECARGA LA PÁGINA
+                page.client_storage.set("esperando_pago", True)
+                page.client_storage.set("monto_pendiente", str(monto))
+                
                 link = generar_enlace_pago(monto, f"Paquete Novum Pilates {monto}", nombre, telefono)
                 if link:
                     page.launch_url(link)
@@ -160,55 +159,57 @@ def main(page: ft.Page):
                 ft.Row([ft.IconButton(ft.icons.ARROW_BACK_IOS_NEW, icon_color=COLOR_RESPIRO, on_click=lambda _: page.go("/paquetes")), ft.Text("Checkout", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO)]), 
                 ft.Container(height=30), ft.Text(f"Total a pagar: ${monto}.00 MXN", size=22, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), 
                 ft.Text("Método de pago", size=14, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO_DARK), ft.Container(height=10), 
-                
                 ft.Container(content=ft.Row([ft.Icon(ft.icons.CREDIT_CARD, color=COLOR_TEXTO_BLANCO), ft.Text("Pagar en línea (BBVA)", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor="#004481", padding=15, border_radius=12, on_click=pagar_bbva),
-                
                 ft.Container(height=15), 
-                ft.Container(
-                    content=ft.Row([ft.Icon(ft.icons.MONEY, color=COLOR_TEXTO_OSCURO), ft.Text("Pagar en Recepción", color=COLOR_TEXTO_OSCURO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), 
-                    bgcolor=COLOR_BG_CLARO, padding=15, border_radius=12, 
-                    on_click=pagar_recepcion_click
-                )
+                ft.Container(content=ft.Row([ft.Icon(ft.icons.MONEY, color=COLOR_TEXTO_OSCURO), ft.Text("Pagar en Recepción", color=COLOR_TEXTO_OSCURO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor=COLOR_BG_CLARO, padding=15, border_radius=12, on_click=pagar_recepcion_click)
             ]))
             
         elif page.route == "/pago/verificando":
             estado_ui = ft.Container(content=ft.Column([ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4), ft.Container(height=20), ft.Text("Aprobando automáticamente...", size=16, color=COLOR_RESPIRO_DARK)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, height=300)
             
-            # NUEVO: Tarea en segundo plano que checa la base de datos sola
+            def limpiar_estados_pago():
+                page.client_storage.remove("esperando_pago")
+                page.client_storage.remove("monto_pendiente")
+                page.session.set("monto_pendiente", "")
+
             def auto_check_payment():
-                monto = page.session.get("monto_pendiente")
+                monto = page.client_storage.get("monto_pendiente") or page.session.get("monto_pendiente")
                 telefono_alumno = page.session.get("user_phone")
-                for _ in range(60): # Intenta por 2 minutos máximo
+                for _ in range(60): 
                     time.sleep(2)
                     if page.route != "/pago/verificando":
-                        break # Corta el hilo si el usuario se sale de la pantalla
+                        break 
                     try:
                         usuario = AppDB.verificar_usuario(telefono_alumno)
                         if usuario and str(usuario.get('active_package', '')).lower().strip() == 'pagado':
                             if usuario.get('credits', 0) <= 0 and monto:
-                                AppDB.asignar_creditos(telefono_alumno, {"100": 1, "650": 8, "800": 12, "1000": 999}.get(monto, 0))
-                            page.session.set("monto_pendiente", "")
+                                AppDB.asignar_creditos(telefono_alumno, {"100": 1, "650": 8, "800": 12, "1000": 999}.get(str(monto), 0))
+                            limpiar_estados_pago()
                             page.go("/servicios")
                             return
                     except Exception:
                         pass
             
-            # Iniciamos el auto-check en cuanto la vista cargue
             page.run_task(auto_check_payment)
             
-            # Botón manual de respaldo por si el auto-check falla
             def verificar_estado_pago_manual(e):
-                monto = page.session.get("monto_pendiente")
+                monto = page.client_storage.get("monto_pendiente")
                 telefono_alumno = page.session.get("user_phone")
                 usuario = AppDB.verificar_usuario(telefono_alumno)
                 if usuario and str(usuario.get('active_package', '')).lower().strip() == 'pagado':
                     if usuario.get('credits', 0) <= 0 and monto:
-                        AppDB.asignar_creditos(telefono_alumno, {"100": 1, "650": 8, "800": 12, "1000": 999}.get(monto, 0))
-                    page.session.set("monto_pendiente", "")
+                        AppDB.asignar_creditos(telefono_alumno, {"100": 1, "650": 8, "800": 12, "1000": 999}.get(str(monto), 0))
+                    limpiar_estados_pago()
                     page.go("/servicios")
 
+            def abortar_verificacion(e):
+                limpiar_estados_pago()
+                page.go("/paquetes")
+
             btn_accion = ft.ElevatedButton("Comprobar Manualmente", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago_manual)
-            page.views.append(ft.View("/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Container(height=50), ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion]))
+            btn_abortar = ft.TextButton("Cancelar pago", style=ft.ButtonStyle(color=ft.colors.RED_400), on_click=abortar_verificacion)
+            
+            page.views.append(ft.View("/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Container(height=50), ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion, btn_abortar]))
 
         # =========================================================================
         # 4. SERVICIOS Y AGENDA ALUMNO
@@ -367,20 +368,14 @@ def main(page: ft.Page):
                         ft.Container(expand=True), 
                         avatar_perfil
                     ]),
-                    ft.Container(height=25), 
-                    servicios_ui, 
-                    ft.Container(height=25),
-                    dias_ui, 
-                    ft.Container(height=25),
+                    ft.Container(height=25), servicios_ui, ft.Container(height=25), dias_ui, ft.Container(height=25),
                     ft.Text("Horarios Disponibles", size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
-                    ft.Container(height=10), 
-                    horarios_ui, 
-                    ft.Container(height=40) 
+                    ft.Container(height=10), horarios_ui, ft.Container(height=40) 
                 ]
             ))
             
         # =========================================================================
-        # 4.5 HISTORIAL Y PERFIL (MEJORA DE CANCELACIÓN DE CLASES)
+        # 4.5 HISTORIAL Y PERFIL
         # =========================================================================
         elif page.route == "/perfil":
             telefono_alumno = page.session.get("user_phone")
@@ -390,7 +385,6 @@ def main(page: ft.Page):
             
             seccion_sin_creditos = ft.Container(content=ft.Column([ft.Icon(ft.icons.WARNING_AMBER_ROUNDED, color=ft.colors.ORANGE_500, size=40), ft.Text("¡Te has quedado sin clases!", size=18, weight=ft.FontWeight.BOLD), ft.ElevatedButton("Comprar Paquete", bgcolor=COLOR_RESPIRO, color="white", on_click=lambda _: page.go("/paquetes"))], alignment="center"), bgcolor="white", padding=20, border_radius=15, margin=ft.margin.only(bottom=20)) if clases_restantes <= 0 else ft.Container()
             
-            # --- LÓGICA DE CANCELACIÓN Y POP-UP ---
             reserva_a_cancelar = [None]
             aplica_penalizacion = [False]
             
@@ -399,28 +393,24 @@ def main(page: ft.Page):
                 penalizar = aplica_penalizacion[0]
                 dlg_cancelar.open = False
                 
-                # Intercambiamos la lista por el círculo de carga
                 contenedor_reservas.content = ft.Container(
                     content=ft.Column([ft.ProgressRing(color=COLOR_RESPIRO), ft.Text("Cancelando sesión...", color=COLOR_RESPIRO_DARK)], horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                     alignment=ft.alignment.center, height=200
                 )
                 page.update()
                 
-                # Ejecutamos en DB
                 AppDB.cancelar_reserva(rid)
                 
-                # Si no está penalizado (es decir, canceló con >12 horas de anticipación), le regalamos de vuelta 1 crédito manualmente
                 if not penalizar:
                     AppDB.asignar_creditos(telefono_alumno, 1)
                 
-                # Mensaje de confirmación
                 msg = "Sesión cancelada. Se aplicó penalidad por tiempo." if penalizar else "Sesión cancelada. Se te ha devuelto 1 crédito."
                 snack = ft.SnackBar(ft.Text(msg), bgcolor=ft.colors.ORANGE_600 if penalizar else ft.colors.GREEN_600)
                 page.overlay.append(snack)
                 snack.open = True
                 
                 time.sleep(0.5)
-                page.go("/perfil") # Recarga limpia de la vista
+                page.go("/perfil") 
                 
             dlg_cancelar = ft.AlertDialog(
                 title=ft.Text("Cancelar Sesión", weight=ft.FontWeight.BOLD),
@@ -437,8 +427,6 @@ def main(page: ft.Page):
                 es_penalizable = False
                 
                 try:
-                    # NOTA: Para que esto funcione 100% perfecto, asegúrate que tu método 'AppDB.obtener_reservas_usuario' 
-                    # retorne en su diccionario 'class_date' (YYYY-MM-DD) y 'start_time' (ej. 08:00 AM)
                     c_date = res.get("class_date")
                     s_time = res.get("start_time")
                     
@@ -446,11 +434,10 @@ def main(page: ft.Page):
                         dt_str = f"{c_date} {s_time}"
                         dt_clase = datetime.datetime.strptime(dt_str, "%Y-%m-%d %I:%M %p")
                         horas_diff = (dt_clase - datetime.datetime.now()).total_seconds() / 3600
-                        
                         if 0 < horas_diff <= 12:
                             es_penalizable = True
                 except Exception:
-                    pass # Si no logramos leer la fecha, asumimos que NO se penaliza para no afectar injustamente al cliente
+                    pass 
                 
                 aplica_penalizacion[0] = es_penalizable
                 
@@ -461,6 +448,11 @@ def main(page: ft.Page):
                 
                 dlg_cancelar.open = True
                 page.update()
+
+            def cerrar_sesion(e):
+                page.client_storage.clear()
+                page.session.clear()
+                page.go("/login")
 
             lista_reservas_ui = ft.Column(spacing=15)
             
@@ -489,8 +481,8 @@ def main(page: ft.Page):
                 ft.Row([ft.IconButton(ft.icons.ARROW_BACK_IOS_NEW, icon_color=COLOR_RESPIRO, on_click=lambda _: page.go("/servicios")), ft.Text("Mi Perfil", size=24, weight="bold", color=COLOR_TEXTO_OSCURO)]), 
                 ft.Container(content=ft.Row([ft.Column([ft.Text("Clases Restantes", size=14, color=COLOR_TEXTO_OSCURO), ft.Text(f"{clases_restantes}", size=40, weight="bold", color=COLOR_RESPIRO)]), ft.Container(expand=True), ft.Icon(ft.icons.FITNESS_CENTER, size=40, color=COLOR_RESPIRO)]), bgcolor="white", padding=25, border_radius=15, shadow=ft.BoxShadow(blur_radius=5, color="#0A000000")),
                 ft.Container(height=20), seccion_sin_creditos, ft.Text("Tus Reservas", size=18, weight="bold", color=COLOR_TEXTO_OSCURO), 
-                contenedor_reservas, # Usamos un contenedor para cambiarlo fácil por un ProgressRing
-                ft.Container(height=30), ft.TextButton("Cerrar Sesión", icon=ft.icons.LOGOUT, style=ft.ButtonStyle(color=ft.colors.RED_400), on_click=lambda _: page.go("/login"))
+                contenedor_reservas, ft.Container(height=30), 
+                ft.TextButton("Cerrar Sesión", icon=ft.icons.LOGOUT, style=ft.ButtonStyle(color=ft.colors.RED_400), on_click=cerrar_sesion)
             ]))
 
         # =========================================================================
@@ -556,11 +548,9 @@ def main(page: ft.Page):
 
             def recargar_listas():
                 f_str = fecha_activa[0].strftime("%Y-%m-%d")
-                
                 lista_agenda.controls.clear()
                 lista_agenda.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
                 page.update() 
-                
                 lista_agenda.controls.clear()
                 
                 if modo_agenda[0] == "30":
@@ -698,7 +688,33 @@ def main(page: ft.Page):
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
-    page.go("/login")
+
+    # --- INICIALIZADOR CON MEMORIA PERSISTENTE ---
+    def iniciar_app():
+        user_phone = page.client_storage.get("user_phone")
+        esperando_pago = page.client_storage.get("esperando_pago")
+        
+        if user_phone:
+            page.session.set("user_phone", user_phone)
+            page.session.set("user_name", page.client_storage.get("user_name"))
+            
+            if esperando_pago:
+                page.session.set("monto_pendiente", page.client_storage.get("monto_pendiente"))
+                page.go("/pago/verificando")
+                return
+            
+            usuario = AppDB.verificar_usuario(user_phone)
+            if usuario:
+                if str(usuario.get('active_package', '')).lower().strip() == 'pagado':
+                    page.go("/servicios")
+                else:
+                    page.go("/paquetes")
+                return
+        
+        page.go("/login")
+
+    # Ejecutamos el inicializador en lugar del page.go("/login") directo
+    iniciar_app()
 
 if __name__ == "__main__":
     import os
