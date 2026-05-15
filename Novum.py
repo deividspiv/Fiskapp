@@ -4,9 +4,9 @@ from pagos import generar_enlace_pago
 import time
 import datetime
 
-# --- PALETA DE COLORES "RESPIRO" ---
-COLOR_RESPIRO = "#998266" # Café más fuerte
-COLOR_RESPIRO_DARK = "#7a6852"
+# --- PALETA DE COLORES "RESPIRO" (RESTAURADA AL ORIGINAL) ---
+COLOR_RESPIRO = "#a3968d"
+COLOR_RESPIRO_DARK = "#8e8279"
 COLOR_CREMA_BOTON = "#dfd0c1"
 COLOR_BG_CLARO = "#f4f2f1"
 COLOR_TEXTO_OSCURO = "#4a4a4a"
@@ -123,7 +123,8 @@ def main(page: ft.Page):
             lista_tarjetas = [ft.Container(width=10)] 
             for pq in paquetes_db:
                 creditos_texto = f"{pq['credits']} clases a elegir" if pq.get('credits') else "Clases ilimitadas"
-                lista_tarjetas.append(RespiroPricingCard(pq["name"], f"${int(pq['price'])}", f"Vigencia: {pq['validity_days']} días", [creditos_texto, "Reserva desde la app"], str(int(pq['price']))))
+                precio_entero = int(pq['price']) 
+                lista_tarjetas.append(RespiroPricingCard(pq["name"], f"${precio_entero}", f"Vigencia: {pq['validity_days']} días", [creditos_texto, "Reserva desde la app"], str(precio_entero)))
             lista_tarjetas.append(ft.Container(width=10)) 
 
             page.views.append(ft.View("/paquetes", bgcolor=COLOR_BG_CLARO, padding=0, controls=[
@@ -213,7 +214,6 @@ def main(page: ft.Page):
                 page.update()
 
                 mis_reservas = AppDB.obtener_reservas_usuario(telefono_alumno)
-                # Formateo ultra seguro para extraer fechas YYYY-MM-DD
                 fechas_reservadas_limpias = []
                 clases_agendadas = []
                 for r in mis_reservas:
@@ -237,16 +237,12 @@ def main(page: ft.Page):
                     text_color = COLOR_TEXTO_BLANCO if es_dia_seleccionado else COLOR_TEXTO_OSCURO
                     
                     dia_str = fecha_iter.strftime("%Y-%m-%d")
-                    
-                    # Verificamos si la fecha exacta o un substring de ella está en las reservas
                     tiene_reserva_hoy = False
                     for f_res in fechas_reservadas_limpias:
                         if dia_str in f_res or f_res in dia_str:
                             tiene_reserva_hoy = True; break
 
                     col_dia = [ft.Text(nombres_dias[fecha_iter.weekday()], size=14, color=text_color, weight=ft.FontWeight.W_500), ft.Text(str(fecha_iter.day), size=20, color=text_color, weight=ft.FontWeight.BOLD)]
-                    
-                    # Palomita de día reservado
                     if tiene_reserva_hoy: col_dia.append(ft.Icon(ft.icons.CHECK_CIRCLE, color=text_color, size=12))
                     else: col_dia.append(ft.Container(height=12))
 
@@ -276,7 +272,6 @@ def main(page: ft.Page):
                             btn_color, btn_text, text_btn_color = ft.colors.GREEN_500, "Agendado ✓", COLOR_TEXTO_BLANCO
                             accion_btn = lambda _: page.go("/perfil") 
                         elif dia_ya_reservado:
-                            # Bloqueo estricto 1 clase por día
                             btn_color, btn_text, text_btn_color = "#E5E5EA", "Día Reservado", COLOR_RESPIRO_DARK
                             accion_btn = None
                         else:
@@ -321,11 +316,9 @@ def main(page: ft.Page):
             
             seccion_sin_creditos = ft.Container(content=ft.Column([ft.Icon(ft.icons.WARNING_AMBER_ROUNDED, color=ft.colors.ORANGE_500, size=40), ft.Text("¡Te has quedado sin clases!", size=18, weight=ft.FontWeight.BOLD), ft.ElevatedButton("Comprar Paquete", bgcolor=COLOR_RESPIRO, color="white", on_click=lambda _: page.go("/paquetes"))], alignment="center"), bgcolor="white", padding=20, border_radius=15, margin=ft.margin.only(bottom=20)) if clases_restantes <= 0 else ft.Container()
             
-            # --- TRUCO DE ENRUTAMIENTO: EVITA PANTALLA BLANCA ---
             def forzar_recarga_perfil():
-                page.route = "/recargando" # Falso enrutamiento para detonar route_change limpio
-                page.update()
-                page.go("/perfil")
+                page.route = "/recargando" 
+                page.update(); page.go("/perfil")
 
             def refrescar_creditos_click(e):
                 e.control.content = ft.ProgressRing(width=20, height=20, color=COLOR_RESPIRO); e.control.update()
@@ -363,8 +356,7 @@ def main(page: ft.Page):
             page.overlay.append(dlg_cancelar)
 
             def preparar_cancelacion(res):
-                reserva_a_cancelar[0] = res.get("id")
-                es_penalizable = False
+                reserva_a_cancelar[0] = res.get("id"); es_penalizable = False
                 try:
                     c_date = res.get("class_date") or res.get("fecha")
                     s_time = res.get("start_time") or res.get("hora")
@@ -373,7 +365,6 @@ def main(page: ft.Page):
                         try: dt_clase = datetime.datetime.strptime(dt_str, "%Y-%m-%d %I:%M %p")
                         except ValueError: dt_clase = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
                         
-                        # UTC - 6 PARA HORA MÉXICO
                         ahora_mexico = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
                         horas_diff = (dt_clase - ahora_mexico).total_seconds() / 3600
                         if 0 < horas_diff <= 12: es_penalizable = True
@@ -439,7 +430,6 @@ def main(page: ft.Page):
                 dlg_detalles.open = True; page.update()
                 
                 alumnos = []
-                # Si tienes la función implementada en AppDB:
                 if hasattr(AppDB, 'obtener_alumnos_clase'): alumnos = AppDB.obtener_alumnos_clase(cid)
                 else: alumnos = [{"full_name": "¡Aviso! Agrega el método AppDB.obtener_alumnos_clase(class_id) a tu base de datos.", "active_package": "pagado"}]
 
@@ -543,9 +533,8 @@ def main(page: ft.Page):
                 ft.Tabs(selected_index=0, animation_duration=300, unselected_label_color=COLOR_RESPIRO_DARK, label_color=COLOR_RESPIRO, indicator_color=COLOR_RESPIRO, expand=True, tabs=[tab_crear, tab_agenda, tab_bloqueos])
             ]))
 
-        # Falso Enrutamiento para refrescar la pantalla sin PANTALLAS BLANCAS
         elif page.route == "/recargando":
-            pass # No hace nada, Flet lo usa como un puente para poder relanzar la vista principal
+            pass # Puente para evitar la pantalla blanca
 
         page.update()
 
