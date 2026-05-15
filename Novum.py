@@ -160,7 +160,9 @@ def main(page: ft.Page):
                 ft.Row([ft.IconButton(ft.icons.ARROW_BACK_IOS_NEW, icon_color=COLOR_RESPIRO, on_click=lambda _: page.go("/paquetes")), ft.Text("Checkout", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO)]), 
                 ft.Container(height=30), ft.Text(f"Total a pagar: ${monto}.00 MXN", size=22, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), 
                 ft.Text("Método de pago", size=14, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO_DARK), ft.Container(height=10), 
+                
                 ft.Container(content=ft.Row([ft.Icon(ft.icons.CREDIT_CARD, color=COLOR_TEXTO_BLANCO), ft.Text("Pagar en línea (BBVA)", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor="#004481", padding=15, border_radius=12, on_click=pagar_bbva),
+                
                 ft.Container(height=15), 
                 ft.Container(content=ft.Row([ft.Icon(ft.icons.MONEY, color=COLOR_TEXTO_OSCURO), ft.Text("Pagar en Recepción", color=COLOR_TEXTO_OSCURO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor=COLOR_BG_CLARO, padding=15, border_radius=12, on_click=pagar_recepcion_click)
             ]))
@@ -365,7 +367,7 @@ def main(page: ft.Page):
             ))
             
         # =========================================================================
-        # 4.5 HISTORIAL Y PERFIL (CANCELACIÓN, POP-UP 12H, Y BOTÓN REFRESCAR)
+        # 4.5 HISTORIAL Y PERFIL
         # =========================================================================
         elif page.route == "/perfil":
             telefono_alumno = page.session.get("user_phone")
@@ -375,7 +377,7 @@ def main(page: ft.Page):
             
             seccion_sin_creditos = ft.Container(content=ft.Column([ft.Icon(ft.icons.WARNING_AMBER_ROUNDED, color=ft.colors.ORANGE_500, size=40), ft.Text("¡Te has quedado sin clases!", size=18, weight=ft.FontWeight.BOLD), ft.ElevatedButton("Comprar Paquete", bgcolor=COLOR_RESPIRO, color="white", on_click=lambda _: page.go("/paquetes"))], alignment="center"), bgcolor="white", padding=20, border_radius=15, margin=ft.margin.only(bottom=20)) if clases_restantes <= 0 else ft.Container()
             
-            # --- BOTÓN MANUAL PARA REFRESCAR CRÉDITOS ---
+            # --- REFRESCAR CRÉDITOS ---
             def refrescar_creditos_click(e):
                 e.control.content = ft.ProgressRing(width=20, height=20, color=COLOR_RESPIRO)
                 e.control.update()
@@ -393,7 +395,9 @@ def main(page: ft.Page):
                 
                 page.overlay.append(snack)
                 snack.open = True
-                time.sleep(0.5)
+                
+                # RECARGA FORZADA INSTANTÁNEA
+                page.route = "/temp"
                 page.go("/perfil") 
 
             boton_refrescar = ft.Container(
@@ -416,10 +420,8 @@ def main(page: ft.Page):
                 )
                 page.update()
                 
-                # Cancelamos en DB
                 AppDB.cancelar_reserva(rid)
                 
-                # Retornamos el crédito manualmente si no hay penalización
                 if not penalizar:
                     u_actual = AppDB.verificar_usuario(telefono_alumno)
                     creditos_previos = u_actual.get('credits', 0) if u_actual else 0
@@ -430,7 +432,8 @@ def main(page: ft.Page):
                 page.overlay.append(snack)
                 snack.open = True
                 
-                time.sleep(0.5)
+                # RECARGA FORZADA INSTANTÁNEA
+                page.route = "/temp"
                 page.go("/perfil") 
                 
             dlg_cancelar = ft.AlertDialog(
@@ -450,14 +453,17 @@ def main(page: ft.Page):
                     c_date = res.get("class_date") or res.get("fecha")
                     s_time = res.get("start_time") or res.get("hora")
                     if c_date and s_time:
-                        dt_str = f"{c_date.split()[0]} {s_time}" 
+                        dt_str = f"{c_date.split()[0]} {s_time.strip()}" 
                         try:
                             dt_clase = datetime.datetime.strptime(dt_str, "%Y-%m-%d %I:%M %p")
-                        except:
+                        except ValueError:
                             dt_clase = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
                             
-                        horas_diff = (dt_clase - datetime.datetime.now()).total_seconds() / 3600
-                        if 0 < horas_diff <= 12:
+                        # Corrección horaria: UTC-6 para México
+                        ahora_mexico = datetime.datetime.utcnow() - datetime.timedelta(hours=6)
+                        horas_diff = (dt_clase - ahora_mexico).total_seconds() / 3600
+                        
+                        if horas_diff <= 12:
                             es_penalizable = True
                 except Exception as e:
                     print("Error calculando tiempo:", e)
@@ -505,7 +511,7 @@ def main(page: ft.Page):
             ]))
 
         # =========================================================================
-        # 5. PANEL ADMIN COMPLETO
+        # 5. PANEL ADMIN
         # =========================================================================
         elif page.route == "/admin":
             fecha_activa = [datetime.date.today()]
@@ -567,9 +573,11 @@ def main(page: ft.Page):
 
             def recargar_listas():
                 f_str = fecha_activa[0].strftime("%Y-%m-%d")
+                
                 lista_agenda.controls.clear()
                 lista_agenda.controls.append(ft.Container(content=ft.ProgressRing(color=COLOR_RESPIRO), alignment=ft.alignment.center, padding=40))
                 page.update() 
+                
                 lista_agenda.controls.clear()
                 
                 if modo_agenda[0] == "30":
@@ -701,9 +709,12 @@ def main(page: ft.Page):
         page.update()
 
     def view_pop(e):
-        page.views.pop()
-        top_view = page.views[-1]
-        page.go(top_view.route)
+        if len(page.views) > 1:
+            page.views.pop()
+            top_view = page.views[-1]
+            page.go(top_view.route)
+        else:
+            page.go("/login")
 
     page.on_route_change = route_change
     page.on_view_pop = view_pop
