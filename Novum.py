@@ -143,36 +143,46 @@ def main(page: ft.Page):
         elif page.route.startswith("/pago/") and not page.route.endswith("/verificando"):
             monto = page.route.split("/")[2]
             page.session.set("monto_pendiente", monto)
+            
+            # --- BOTÓN DINÁMICO ANTI-SAFARI ---
+            btn_bbva = ft.Container(
+                content=ft.Row([ft.Icon(ft.icons.CREDIT_CARD, color=COLOR_TEXTO_BLANCO), ft.Text("Pagar en línea (BBVA)", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), 
+                bgcolor="#004481", padding=15, border_radius=12
+            )
+            
             def pagar_bbva(e):
+                # 1. Cambiamos visualmente a estado de "Cargando"
+                btn_bbva.content = ft.Row([ft.ProgressRing(width=20, height=20, color=COLOR_TEXTO_BLANCO, stroke_width=2), ft.Text(" Conectando con BBVA...", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER)
+                btn_bbva.on_click = None # Desactivamos para que no le den doble clic
+                page.update()
+                
+                # 2. Pedimos el link a Openpay
                 telefono, nombre = page.session.get("user_phone"), page.session.get("user_name")
                 AppDB.crear_registro_pago(telefono, monto)
                 link = generar_enlace_pago(monto, f"Paquete Novum Pilates {monto}", nombre, telefono)
+                
                 if link:
-                    page.launch_url(link)
-                    page.go("/pago/verificando")
+                    # 3. Transformamos el botón en un enlace nativo que Safari respeta
+                    btn_bbva.content = ft.Row([ft.Icon(ft.icons.LOCK_OUTLINE, color=COLOR_TEXTO_BLANCO), ft.Text("Toca aquí para abrir el banco", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER)
+                    btn_bbva.bgcolor = ft.colors.GREEN_600
+                    btn_bbva.url = link # <-- Este es el truco para brincar el bloqueo
+                    btn_bbva.on_click = lambda _: page.go("/pago/verificando") # Nos vamos a la pantalla de espera
+                    page.update()
+                else:
+                    btn_bbva.content = ft.Row([ft.Icon(ft.icons.ERROR, color=COLOR_TEXTO_BLANCO), ft.Text("Error. Intenta de nuevo", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER)
+                    btn_bbva.bgcolor = ft.colors.RED_500
+                    page.update()
+
+            btn_bbva.on_click = pagar_bbva
+
             page.views.append(ft.View(page.route, bgcolor=COLOR_TEXTO_BLANCO, padding=20, controls=[
                 ft.Row([ft.IconButton(ft.icons.ARROW_BACK_IOS_NEW, icon_color=COLOR_RESPIRO, on_click=lambda _: page.go("/paquetes")), ft.Text("Checkout", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO)]), 
                 ft.Container(height=30), ft.Text(f"Total a pagar: ${monto}.00 MXN", size=22, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), 
                 ft.Text("Método de pago", size=14, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO_DARK), ft.Container(height=10), 
-                ft.Container(content=ft.Row([ft.Icon(ft.icons.CREDIT_CARD, color=COLOR_TEXTO_BLANCO), ft.Text("Pagar en línea (BBVA)", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor="#004481", padding=15, border_radius=12, on_click=pagar_bbva)
+                btn_bbva, # Insertamos nuestro botón dinámico aquí
+                ft.Container(height=15), 
+                ft.Container(content=ft.Row([ft.Icon(ft.icons.MONEY, color=COLOR_TEXTO_OSCURO), ft.Text("Pagar en Recepción", color=COLOR_TEXTO_OSCURO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor=COLOR_BG_CLARO, padding=15, border_radius=12, on_click=lambda _: page.overlay.append(ft.SnackBar(ft.Text("Solicitud enviada. Paga en recepción.", color=COLOR_TEXTO_BLANCO), bgcolor=COLOR_RESPIRO)) or page.update())
             ]))
-            
-        elif page.route == "/pago/verificando":
-            estado_ui = ft.Container(content=ft.Column([ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4), ft.Container(height=20), ft.Text("Esperando confirmación del banco...", size=16, color=COLOR_RESPIRO_DARK)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, height=300)
-            def verificar_estado_pago(e):
-                monto = page.session.get("monto_pendiente")
-                telefono_alumno = page.session.get("user_phone")
-                for _ in range(5):
-                    time.sleep(2)
-                    usuario = AppDB.verificar_usuario(telefono_alumno)
-                    if usuario and str(usuario.get('active_package', '')).lower().strip() == 'pagado':
-                        if usuario.get('credits', 0) <= 0 and monto:
-                            AppDB.asignar_creditos(telefono_alumno, {"100": 1, "650": 8, "800": 12, "1000": 999}.get(monto, 0))
-                        page.go("/servicios")
-                        return
-            btn_accion = ft.ElevatedButton("Ya realicé mi pago", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago)
-            page.views.append(ft.View("/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Container(height=50), ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion]))
-
         # =========================================================================
         # 4. SERVICIOS Y AGENDA ALUMNO (NUEVA PANTALLA FUSIONADA)
         # =========================================================================
