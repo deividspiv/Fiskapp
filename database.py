@@ -275,16 +275,11 @@ class AppDB:
         return response.json() if response.status_code == 200 else []
 
     # ---------------------------------------------------------
-    # NUEVO: OBTENER ALUMNOS POR CLASE
+    # OBTENER ALUMNOS POR CLASE
     # ---------------------------------------------------------
     @staticmethod
     def obtener_alumnos_clase(class_id):
-        """
-        Busca todos los alumnos que tienen una reserva 'activa' (futura) 
-        en una clase específica y devuelve sus nombres y estado.
-        """
         try:
-            # 1. Buscamos los teléfonos en la tabla de reservas
             url_res = f"{SUPABASE_URL}/rest/v1/reservations"
             params_res = {
                 "class_id": f"eq.{class_id}",
@@ -296,11 +291,23 @@ class AppDB:
             if resp_res.status_code != 200:
                 return []
                 
-            # Extraemos la lista de teléfonos
             telefonos = [r.get("client_phone") for r in resp_res.json() if r.get("client_phone")]
             
-            # 2. Si hay inscritos, buscamos sus datos en la tabla de clientes
             alumnos_detalles = []
             if telefonos:
                 telefonos_str = ",".join(telefonos)
                 url_cli = f"{SUPABASE_URL}/rest/v1/clients"
+                params_cli = {
+                    "phone": f"in.({telefonos_str})",
+                    "select": "full_name, active_package"
+                }
+                resp_cli = requests.get(url_cli, headers=HEADERS, params=params_cli, verify=False)
+                
+                if resp_cli.status_code == 200:
+                    alumnos_detalles = resp_cli.json()
+                    
+            return alumnos_detalles
+            
+        except Exception as e:
+            print(f"Error obteniendo alumnos de la clase: {e}")
+            return []
