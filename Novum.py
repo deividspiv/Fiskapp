@@ -16,7 +16,7 @@ COLOR_DIVIDER       = "#ede8e4"
 COLOR_ACCENT_LIGHT  = "#f0ebe7"
 
 
-# ─── Helpers de UI (Mejoras visuales) ────────────────────────────────────────
+# ─── Helpers de UI  (Mejoras visuales) ────────────────────────────────────────
 
 def _label(text, size=11, color=COLOR_RESPIRO_DARK, spacing=1.5):
     """Pequeña etiqueta en mayúsculas."""
