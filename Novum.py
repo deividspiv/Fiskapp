@@ -34,11 +34,16 @@ def main(page: ft.Page):
                     try: monto_guardado = page.client_storage.get("monto_pendiente")
                     except: pass
                     
-                    monto = page.session.get("monto_pendiente") or monto_guardado or "650"
-                    nuevos_creditos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 8)
-                    AppDB.asignar_creditos(telefono, nuevos_creditos)
-                    try: page.client_storage.remove("monto_pendiente")
-                    except: pass
+                    monto = page.session.get("monto_pendiente") or monto_guardado 
+                    
+                    if monto:
+                        nuevos_creditos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 0)
+                        if nuevos_creditos > 0:
+                            AppDB.asignar_creditos(telefono, nuevos_creditos)
+                        
+                        page.session.set("monto_pendiente", "")
+                        try: page.client_storage.remove("monto_pendiente")
+                        except: pass
         except Exception as e:
             print("Error en sincronización silenciosa:", e)
 
@@ -323,11 +328,23 @@ def main(page: ft.Page):
             def refrescar_creditos_click(e):
                 e.control.content = ft.ProgressRing(width=20, height=20, color=COLOR_RESPIRO); e.control.update()
                 u_sync = AppDB.verificar_usuario(telefono_alumno)
-                monto = page.session.get("monto_pendiente") or "650" 
+                
+                monto_guardado = None
+                try: monto_guardado = page.client_storage.get("monto_pendiente")
+                except: pass
+                
+                monto = page.session.get("monto_pendiente") or monto_guardado
+                
                 if u_sync and str(u_sync.get('active_package','')).lower().strip() == 'pagado':
-                    if u_sync.get('credits', 0) <= 0:
-                        nuevos_creditos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 8)
-                        AppDB.asignar_creditos(telefono_alumno, nuevos_creditos)
+                    if u_sync.get('credits', 0) <= 0 and monto:
+                        nuevos_creditos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 0)
+                        if nuevos_creditos > 0:
+                            AppDB.asignar_creditos(telefono_alumno, nuevos_creditos)
+                            
+                        page.session.set("monto_pendiente", "")
+                        try: page.client_storage.remove("monto_pendiente")
+                        except: pass
+                        
                     snack = ft.SnackBar(ft.Text("¡Tus clases han sido sincronizadas!"), bgcolor=ft.colors.GREEN_600)
                 else:
                     snack = ft.SnackBar(ft.Text("Aún no detectamos tu pago en la base de datos."), bgcolor=ft.colors.ORANGE_600)
