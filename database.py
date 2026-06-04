@@ -5,7 +5,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- LLAVES DE TU PROYECTO (Webhook) ---
-SUPABASE_URL = "https://pmbrvgmvvrxtsmkmqfcg.supabase.co" 
+SUPABASE_URL = "https://fdhjanrmfgevuxzersnd.supabase.co/rest/v1/" 
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtYnJ2Z212dnJ4dHNta21xZmNnIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODQ0MTU0MCwiZXhwIjoyMDk0MDE3NTQwfQ.eIsHMUycrCQhUciappBMlHGuThZhbbC-3ys1vfKfTJg"
 
 HEADERS = {
