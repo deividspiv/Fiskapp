@@ -14,7 +14,7 @@ COLOR_TEXTO_OSCURO = "#4a4a4a"
 COLOR_TEXTO_BLANCO = "#FFFFFF"
 
 def main(page: ft.Page):
-    page.title = "Novum Pilates"
+    page.title = "Respiro Pilates"
     page.theme_mode = ft.ThemeMode.LIGHT
     
     # Variables de Sesión Iniciales
@@ -443,7 +443,19 @@ def main(page: ft.Page):
                 fila_superior = ft.Row([ft.Text(res.get("servicio", "Clase"), size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(expand=True), ft.Text(res.get("estado", "").capitalize(), size=12, color=COLOR_RESPIRO if is_futura else COLOR_RESPIRO_DARK, weight=ft.FontWeight.BOLD)])
                 elementos_tarjeta = [fila_superior, ft.Text(res.get("fecha", ""), size=14, color=COLOR_RESPIRO_DARK)]
                 if is_futura: elementos_tarjeta.append(ft.Row([ft.Container(expand=True), ft.TextButton("Cancelar Clase", icon=ft.icons.CANCEL, style=ft.ButtonStyle(color=ft.colors.RED_400), on_click=lambda e, r=res: preparar_cancelacion(r))]))
-                lista_reservas_ui.controls.append(ft.Container(content=ft.Column(elementos_tarjeta, spacing=5), bgcolor="white", padding=20, border_radius=15, shadow=ft.BoxShadow(blur_radius=5, color="#0A000000", offset=ft.Offset(0, 2)))))
+                lista_reservas_ui.controls.append(
+    ft.Container(
+        content=ft.Column(elementos_tarjeta, spacing=5),
+        bgcolor="white",
+        padding=20,
+        border_radius=15,
+        shadow=ft.BoxShadow(
+            blur_radius=5, 
+            color="#0A000000", 
+            offset=ft.Offset(0, 2)
+        )
+    )
+)
             
             if not mis_reservas: lista_reservas_ui.controls.append(ft.Text("Aún no tienes historial de reservas.", color=COLOR_RESPIRO_DARK))
             contenedor_reservas = ft.Container(content=lista_reservas_ui)
