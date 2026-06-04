@@ -1,4 +1,3 @@
-flet>=0.25.0
-flet-webview
+flet==0.22.0
 requests
 urllib3
