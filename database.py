@@ -1,11 +1,10 @@
 import requests
-import urllib3
 
-# Apagamos advertencias del firewall
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# --- LLAVES DE TU PROYECTO (Webhook) ---
+# --- LLAVES DE TU PROYECTO (Supabase) ---
 SUPABASE_URL = "https://fdhjanrmfgevuxzersnd.supabase.co" 
+
+# ⚠️ IMPORTANTE: Ve a Supabase -> Project Settings -> API
+# Copia la llave secreta llamada 'service_role' y pégala aquí abajo.
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkaGphbnJtZmdldnV4emVyc25kIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg2NDQ3NywiZXhwIjoyMDg5NDQwNDc3fQ.KEot3k2ESvRl6jhzxmKk_vf16zdb8h_cybhKWXL2cbA"
 
 HEADERS = {
@@ -22,7 +21,7 @@ class AppDB:
     def verificar_usuario(celular):
         url = f"{SUPABASE_URL}/rest/v1/clients"
         params = {"phone": f"eq.{celular}", "select": "*"}
-        response = requests.get(url, headers=HEADERS, params=params, verify=False)
+        response = requests.get(url, headers=HEADERS, params=params)
         if response.status_code == 200 and len(response.json()) > 0:
             return response.json()[0]
         return None
@@ -36,7 +35,7 @@ class AppDB:
             "active_package": "inactivo",
             "credits": 0 
         }
-        response = requests.post(url, headers=HEADERS, json=data, verify=False)
+        response = requests.post(url, headers=HEADERS, json=data)
         return response.status_code == 201
 
     # ---------------------------------------------------------
@@ -46,7 +45,7 @@ class AppDB:
     def obtener_paquetes():
         url = f"{SUPABASE_URL}/rest/v1/packages"
         params = {"select": "*", "order": "price.asc"}
-        response = requests.get(url, headers=HEADERS, params=params, verify=False)
+        response = requests.get(url, headers=HEADERS, params=params)
         if response.status_code == 200:
             return response.json()
         return []
@@ -58,7 +57,7 @@ class AppDB:
     def crear_registro_pago(celular, monto):
         url = f"{SUPABASE_URL}/rest/v1/payments"
         data = {"client_phone": celular, "amount": float(monto), "status": "PENDIENTE"}
-        response = requests.post(url, headers=HEADERS, json=data, verify=False)
+        response = requests.post(url, headers=HEADERS, json=data)
         return response.status_code == 201
 
     # ---------------------------------------------------------
@@ -70,7 +69,7 @@ class AppDB:
         params = {"class_id": f"eq.{class_id}", "status": "eq.activa", "select": "id"}
         headers_count = HEADERS.copy()
         headers_count["Prefer"] = "count=exact"
-        response = requests.get(url, headers=headers_count, params=params, verify=False)
+        response = requests.get(url, headers=headers_count, params=params)
         rango = response.headers.get("Content-Range", "0-0/0")
         try:
             return int(rango.split("/")[-1])
@@ -87,7 +86,7 @@ class AppDB:
             "is_blocked": "is.false",
             "order": "start_time.asc"
         }
-        response = requests.get(url, headers=HEADERS, params=params, verify=False)
+        response = requests.get(url, headers=HEADERS, params=params)
         clases_formateadas = []
         if response.status_code == 200:
             for c in response.json():
@@ -112,7 +111,7 @@ class AppDB:
             "client_phone": f"eq.{telefono}",
             "order": "id.desc"
         }
-        response = requests.get(url, headers=HEADERS, params=params, verify=False)
+        response = requests.get(url, headers=HEADERS, params=params)
         reservas_formateadas = []
         if response.status_code == 200:
             for r in response.json():
@@ -137,11 +136,11 @@ class AppDB:
             return False 
         
         url_update = f"{SUPABASE_URL}/rest/v1/clients"
-        requests.patch(url_update, headers=HEADERS, params={"phone": f"eq.{telefono}"}, json={"credits": creditos - 1}, verify=False)
+        requests.patch(url_update, headers=HEADERS, params={"phone": f"eq.{telefono}"}, json={"credits": creditos - 1})
 
         url_res = f"{SUPABASE_URL}/rest/v1/reservations"
         data = {"client_phone": telefono, "class_id": clase_id, "status": "activa"}
-        response = requests.post(url_res, headers=HEADERS, json=data, verify=False)
+        response = requests.post(url_res, headers=HEADERS, json=data)
         return response.status_code == 201
 
     @staticmethod
@@ -149,7 +148,7 @@ class AppDB:
         url = f"{SUPABASE_URL}/rest/v1/reservations"
         params = {"id": f"eq.{reserva_id}"}
         data = {"status": "cancelada"}
-        response = requests.patch(url, headers=HEADERS, params=params, json=data, verify=False)
+        response = requests.patch(url, headers=HEADERS, params=params, json=data)
         return response.status_code in [200, 204]
 
     @staticmethod
@@ -157,7 +156,7 @@ class AppDB:
         url = f"{SUPABASE_URL}/rest/v1/clients"
         params = {"phone": f"eq.{telefono}"}
         data = {"credits": cantidad_creditos}
-        response = requests.patch(url, headers=HEADERS, params=params, json=data, verify=False)
+        response = requests.patch(url, headers=HEADERS, params=params, json=data)
         return response.status_code in [200, 204]
 
     # ---------------------------------------------------------
@@ -166,7 +165,7 @@ class AppDB:
     @staticmethod
     def obtener_servicios():
         url = f"{SUPABASE_URL}/rest/v1/services"
-        response = requests.get(url, headers=HEADERS, verify=False)
+        response = requests.get(url, headers=HEADERS)
         if response.status_code == 200:
             return response.json()
         return []
@@ -182,7 +181,7 @@ class AppDB:
             "capacity": int(cupo),
             "is_blocked": False
         }
-        response = requests.post(url, headers=HEADERS, json=data, verify=False)
+        response = requests.post(url, headers=HEADERS, json=data)
         if response.status_code != 201:
             print(f"ERROR DE SUPABASE: {response.text}")
         return response.status_code == 201
@@ -195,7 +194,7 @@ class AppDB:
             "start_time": f"eq.{hora}",
             "select": "*"
         }
-        response = requests.get(url, headers=HEADERS, params=params, verify=False)
+        response = requests.get(url, headers=HEADERS, params=params)
         return len(response.json()) > 0
 
     @staticmethod
@@ -209,7 +208,7 @@ class AppDB:
             "instructor": instructor,
             "capacity": int(cupo)
         }
-        response = requests.patch(url, headers=HEADERS, params=params, json=data, verify=False)
+        response = requests.patch(url, headers=HEADERS, params=params, json=data)
         return response.status_code in [200, 204]
 
     @staticmethod
@@ -219,7 +218,7 @@ class AppDB:
             "class_date": f"eq.{fecha}",
             "order": "start_time.asc"
         }
-        response = requests.get(url, headers=HEADERS, params=params, verify=False)
+        response = requests.get(url, headers=HEADERS, params=params)
         return response.json() if response.status_code == 200 else []
 
     # ---------------------------------------------------------
@@ -236,42 +235,42 @@ class AppDB:
             "capacity": 0,
             "is_blocked": True
         }
-        response = requests.post(url, headers=HEADERS, json=data, verify=False)
+        response = requests.post(url, headers=HEADERS, json=data)
         return response.status_code == 201
 
     @staticmethod
     def obtener_dias_bloqueados():
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"is_blocked": "is.true", "select": "id, class_date", "order": "class_date.asc"}
-        response = requests.get(url, headers=HEADERS, params=params, verify=False)
+        response = requests.get(url, headers=HEADERS, params=params)
         return response.json() if response.status_code == 200 else []
 
     @staticmethod
     def desbloquear_dia(bloqueo_id):
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"id": f"eq.{bloqueo_id}"}
-        response = requests.delete(url, headers=HEADERS, params=params, verify=False)
+        response = requests.delete(url, headers=HEADERS, params=params)
         return response.status_code in [200, 204]
 
     @staticmethod
     def es_dia_bloqueado(fecha):
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"class_date": f"eq.{fecha}", "is_blocked": "is.true", "select": "id"}
-        response = requests.get(url, headers=HEADERS, params=params, verify=False)
+        response = requests.get(url, headers=HEADERS, params=params)
         return len(response.json()) > 0 if response.status_code == 200 else False
 
     @staticmethod
     def eliminar_clase(clase_id):
         url = f"{SUPABASE_URL}/rest/v1/classes"
         params = {"id": f"eq.{clase_id}"}
-        response = requests.delete(url, headers=HEADERS, params=params, verify=False)
+        response = requests.delete(url, headers=HEADERS, params=params)
         return response.status_code in [200, 204]
 
     @staticmethod
     def obtener_agenda_rango(fecha_inicio, fecha_fin):
         url = f"{SUPABASE_URL}/rest/v1/classes"
         query = f"class_date=gte.{fecha_inicio}&class_date=lte.{fecha_fin}&order=class_date.asc,start_time.asc"
-        response = requests.get(f"{url}?{query}", headers=HEADERS, verify=False)
+        response = requests.get(f"{url}?{query}", headers=HEADERS)
         return response.json() if response.status_code == 200 else []
 
     # ---------------------------------------------------------
@@ -286,7 +285,7 @@ class AppDB:
                 "status": "eq.activa",
                 "select": "client_phone"
             }
-            resp_res = requests.get(url_res, headers=HEADERS, params=params_res, verify=False)
+            resp_res = requests.get(url_res, headers=HEADERS, params=params_res)
             
             if resp_res.status_code != 200:
                 return []
@@ -301,7 +300,7 @@ class AppDB:
                     "phone": f"in.({telefonos_str})",
                     "select": "full_name, active_package"
                 }
-                resp_cli = requests.get(url_cli, headers=HEADERS, params=params_cli, verify=False)
+                resp_cli = requests.get(url_cli, headers=HEADERS, params=params_cli)
                 
                 if resp_cli.status_code == 200:
                     alumnos_detalles = resp_cli.json()
