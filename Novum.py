@@ -18,10 +18,10 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.LIGHT
 
     # Variables de Sesión
-    page.session.set("is_logged_in", False)
-    page.session.set("has_active_package", False)
-    page.session.set("user_phone", "")
-    page.session.set("monto_pendiente", "")
+    page.session.store.set("is_logged_in", False)
+    page.session.store.set("has_active_package", False)
+    page.session.store.set("user_phone", "")
+    page.session.store.set("monto_pendiente", "")
 
     # --- LÓGICA DE SINCRONIZACIÓN INVISIBLE ---
     def sync_creditos_silencioso(telefono):
@@ -36,12 +36,12 @@ def main(page: ft.Page):
                         monto_guardado = page.client_storage.get("monto_pendiente")
                     except:
                         pass
-                    monto = page.session.get("monto_pendiente") or monto_guardado
+                    monto = page.session.store.get("monto_pendiente") or monto_guardado
                     if monto:
                         nuevos_creditos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 0)
                         if nuevos_creditos > 0:
                             AppDB.asignar_creditos(telefono, nuevos_creditos)
-                        page.session.set("monto_pendiente", "")
+                        page.session.store.set("monto_pendiente", "")
                         try:
                             page.client_storage.remove("monto_pendiente")
                         except:
@@ -197,9 +197,9 @@ def main(page: ft.Page):
 
                     e.control.content = ft.Text("Continuar", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.W_600)
                     e.control.update()
-                    page.session.set("user_phone", celular_field.value)
-                    page.session.set("user_name", nombre_final)
-                    page.session.set("has_active_package", tiene_paquete_activo)
+                    page.session.store.set("user_phone", celular_field.value)
+                    page.session.store.set("user_name", nombre_final)
+                    page.session.store.set("has_active_package", tiene_paquete_activo)
                     page.go("/servicios" if tiene_paquete_activo else "/paquetes")
 
             page.views.append(ft.View(
@@ -267,7 +267,7 @@ def main(page: ft.Page):
         # =====================================================================
         elif page.route.startswith("/pago/") and not page.route.endswith("/verificando"):
             monto = page.route.split("/")[2]
-            page.session.set("monto_pendiente", monto)
+            page.session.store.set("monto_pendiente", monto)
 
             estado = {
                 "link_generado": None,
@@ -406,7 +406,7 @@ def main(page: ft.Page):
                     "thank-you", "pago-exitoso",
                 ]
                 if any(k in url_lower for k in keywords_exito):
-                    page.session.set("monto_pendiente", monto)
+                    page.session.store.set("monto_pendiente", monto)
                     try:
                         page.client_storage.set("monto_pendiente", str(monto))
                     except Exception:
@@ -451,8 +451,8 @@ def main(page: ft.Page):
                 btn_bbva.on_click = None
                 page.update()
 
-                telefono = page.session.get("user_phone")
-                nombre = page.session.get("user_name")
+                telefono = page.session.store.get("user_phone")
+                nombre = page.session.store.get("user_name")
 
                 try:
                     AppDB.crear_registro_pago(telefono, monto)
@@ -525,7 +525,7 @@ def main(page: ft.Page):
             )
 
             def auto_check_payment():
-                telefono_alumno = page.session.get("user_phone")
+                telefono_alumno = page.session.store.get("user_phone")
                 if not telefono_alumno:
                     return
                 for _ in range(60):
@@ -536,7 +536,7 @@ def main(page: ft.Page):
                         u = AppDB.verificar_usuario(telefono_alumno)
                         if u and str(u.get('active_package', '')).lower().strip() == 'pagado':
                             sync_creditos_silencioso(telefono_alumno)
-                            page.session.set("monto_pendiente", "")
+                            page.session.store.set("monto_pendiente", "")
                             page.go("/servicios")
                             return
                     except Exception:
@@ -545,9 +545,9 @@ def main(page: ft.Page):
             page.run_task(auto_check_payment)
 
             def verificar_estado_pago_manual(e):
-                telefono_alumno = page.session.get("user_phone")
+                telefono_alumno = page.session.store.get("user_phone")
                 sync_creditos_silencioso(telefono_alumno)
-                page.session.set("monto_pendiente", "")
+                page.session.store.set("monto_pendiente", "")
                 page.go("/servicios")
 
             btn_accion = ft.ElevatedButton(
@@ -577,10 +577,10 @@ def main(page: ft.Page):
         # 4. SERVICIOS Y AGENDA ALUMNO
         # =====================================================================
         elif page.route == "/servicios":
-            telefono_alumno = page.session.get("user_phone")
+            telefono_alumno = page.session.store.get("user_phone")
             sync_creditos_silencioso(telefono_alumno)
 
-            nombre_usuario = page.session.get('user_name')
+            nombre_usuario = page.session.store.get('user_name')
             primer_nombre = nombre_usuario.split()[0] if nombre_usuario else 'Alumno'
             inicial = primer_nombre[0].upper() if primer_nombre else "A"
             hoy = datetime.date.today()
@@ -801,7 +801,7 @@ def main(page: ft.Page):
         # 4.5 HISTORIAL Y PERFIL
         # =====================================================================
         elif page.route == "/perfil":
-            telefono_alumno = page.session.get("user_phone")
+            telefono_alumno = page.session.store.get("user_phone")
             sync_creditos_silencioso(telefono_alumno)
 
             usuario = AppDB.verificar_usuario(telefono_alumno)
@@ -835,14 +835,14 @@ def main(page: ft.Page):
                 except:
                     pass
 
-                monto = page.session.get("monto_pendiente") or monto_guardado
+                monto = page.session.store.get("monto_pendiente") or monto_guardado
 
                 if u_sync and str(u_sync.get('active_package', '')).lower().strip() == 'pagado':
                     if u_sync.get('credits', 0) <= 0 and monto:
                         nuevos_creditos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 0)
                         if nuevos_creditos > 0:
                             AppDB.asignar_creditos(telefono_alumno, nuevos_creditos)
-                        page.session.set("monto_pendiente", "")
+                        page.session.store.set("monto_pendiente", "")
                         try:
                             page.client_storage.remove("monto_pendiente")
                         except:
