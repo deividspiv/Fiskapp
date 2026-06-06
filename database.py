@@ -1,7 +1,7 @@
 import requests
 
 # --- LLAVES DE TU PROYECTO (Supabase) ---
-SUPABASE_URL = "https://fdhjanrmfgevuxzersnd.supabase.co" 
+SUPABASE_URL = "https://pmbrvgmvvrxtsmkmqfcg.supabase.co/rest/v1/" 
 
 # ⚠️ IMPORTANTE: Ve a Supabase -> Project Settings -> API
 # Copia la llave secreta llamada 'service_role' (NO la anon) y pégala aquí abajo.
