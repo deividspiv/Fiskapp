@@ -4,7 +4,7 @@ import requests
 SUPABASE_URL = "https://fdhjanrmfgevuxzersnd.supabase.co" 
 
 # ⚠️ IMPORTANTE: Ve a Supabase -> Project Settings -> API
-# Copia la llave secreta llamada 'service_role' y pégala aquí abajo.
+# Copia la llave secreta llamada 'service_role' (NO la anon) y pégala aquí abajo.
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkaGphbnJtZmdldnV4emVyc25kIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg2NDQ3NywiZXhwIjoyMDg5NDQwNDc3fQ.KEot3k2ESvRl6jhzxmKk_vf16zdb8h_cybhKWXL2cbA"
 
 HEADERS = {
@@ -59,6 +59,25 @@ class AppDB:
         data = {"client_phone": celular, "amount": float(monto), "status": "PENDIENTE"}
         response = requests.post(url, headers=HEADERS, json=data)
         return response.status_code == 201
+
+    @staticmethod
+    def obtener_ultimo_pago(telefono):
+        url = f"{SUPABASE_URL}/rest/v1/payments"
+        params = {
+            "client_phone": f"eq.{telefono}", 
+            "order": "id.desc", 
+            "limit": "1"
+        }
+        response = requests.get(url, headers=HEADERS, params=params)
+        if response.status_code == 200 and len(response.json()) > 0:
+            return response.json()[0]
+        return None
+
+    @staticmethod
+    def simular_webhook_banco(telefono):
+        # Esta función simula que el banco le avisó a Supabase que el pago fue exitoso
+        url = f"{SUPABASE_URL}/rest/v1/clients"
+        requests.patch(url, headers=HEADERS, params={"phone": f"eq.{telefono}"}, json={"active_package": "pagado"})
 
     # ---------------------------------------------------------
     # CLASES Y CALENDARIO (classes)
