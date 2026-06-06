@@ -5,7 +5,7 @@ SUPABASE_URL = "https://fdhjanrmfgevuxzersnd.supabase.co"
 
 # ⚠️ IMPORTANTE: Ve a Supabase -> Project Settings -> API
 # Copia la llave secreta llamada 'service_role' (NO la anon) y pégala aquí abajo.
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkaGphbnJtZmdldnV4emVyc25kIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Mzg2NDQ3NywiZXhwIjoyMDg5NDQwNDc3fQ.KEot3k2ESvRl6jhzxmKk_vf16zdb8h_cybhKWXL2cbA"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtYnJ2Z212dnJ4dHNta21xZmNnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NDE1NDAsImV4cCI6MjA5NDAxNzU0MH0.Rfi52YBbb1FnSPZPKEm7K7oM4qA5dikjjU1dJIGYkJ0"
 
 HEADERS = {
     "apikey": SUPABASE_KEY,
