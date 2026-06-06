@@ -5,7 +5,7 @@ import time
 import datetime
 import os
 
-# --- PALETA DE COLORES "RESPIRO" (RESTAURADA AL ORIGINAL) ---
+# --- PALETA DE COLORES "RESPIRO" ---
 COLOR_RESPIRO = "#a3968d"
 COLOR_RESPIRO_DARK = "#8e8279"
 COLOR_CREMA_BOTON = "#dfd0c1"
@@ -14,7 +14,7 @@ COLOR_TEXTO_OSCURO = "#4a4a4a"
 COLOR_TEXTO_BLANCO = "#FFFFFF"
 
 def main(page: ft.Page):
-    page.title = "Respiro Pilates"
+    page.title = "Novum Pilates"
     page.theme_mode = ft.ThemeMode.LIGHT
     
     # Variables de Sesión Iniciales
@@ -23,7 +23,7 @@ def main(page: ft.Page):
     page.session.set("user_phone", "")
     page.session.set("monto_pendiente", "") 
 
-    # --- LÓGICA DE SINCRONIZACIÓN INVISIBLE ---
+    # --- LÓGICA DE SINCRONIZACIÓN INVISIBLE MEJORADA ---
     def sync_creditos_silencioso(telefono):
         if not telefono: 
             return
@@ -31,11 +31,20 @@ def main(page: ft.Page):
             u_sync = AppDB.verificar_usuario(telefono)
             if u_sync and str(u_sync.get('active_package','')).lower().strip() == 'pagado':
                 if u_sync.get('credits', 0) <= 0:
-                    monto_guardado = None
-                    try: monto_guardado = page.client_storage.get("monto_pendiente")
-                    except: pass
                     
-                    monto = page.session.get("monto_pendiente") or monto_guardado 
+                    # 1. Intentar recuperar el monto de la memoria en RAM
+                    monto = page.session.get("monto_pendiente")
+                    
+                    # 2. Si no hay RAM, intentar almacenamiento en dispositivo
+                    if not monto:
+                        try: monto = page.client_storage.get("monto_pendiente")
+                        except: pass
+                    
+                    # 3. Si falló la memoria local, ¡rescatarlo de Supabase!
+                    if not monto:
+                        ultimo_pago = AppDB.obtener_ultimo_pago(telefono)
+                        if ultimo_pago:
+                            monto = str(int(ultimo_pago.get("amount", 0)))
                     
                     if monto:
                         nuevos_creditos = {"100": 1, "650": 8, "800": 12, "1000": 30}.get(str(monto), 0)
@@ -77,7 +86,6 @@ def main(page: ft.Page):
         page.views.clear()
         
         # --- RECUPERACIÓN DE SESIÓN (iOS / ANDROID) ---
-        # Si la app fue cerrada por el sistema operativo, restauramos la sesión desde el almacenamiento local
         if not page.session.get("user_phone"):
             try:
                 tel_guardado = page.client_storage.get("user_phone")
@@ -87,7 +95,6 @@ def main(page: ft.Page):
                     if nombre_guardado:
                         page.session.set("user_name", nombre_guardado)
                     
-                    # Redirigir al inicio correspondiente si entra directo a la raíz
                     if page.route == "/login" or page.route == "/":
                         usuario_rec = AppDB.verificar_usuario(tel_guardado)
                         if usuario_rec and str(usuario_rec.get('active_package', '')).lower().strip() == 'pagado' and usuario_rec.get('credits', 0) > 0:
@@ -118,34 +125,45 @@ def main(page: ft.Page):
             
             def do_login(e):
                 if nombre_field.value and celular_field.value:
-                    e.control.content = ft.ProgressRing(width=20, height=20, color=COLOR_TEXTO_BLANCO, stroke_width=2); e.control.update()
-                    usuario = AppDB.verificar_usuario(celular_field.value)
-                    if not usuario:
-                        AppDB.registrar_usuario(celular_field.value, nombre_field.value)
-                        nombre_final = nombre_field.value
-                    else:
-                        nombre_final = usuario.get('full_name', nombre_field.value)
+                    contenido_original = ft.Text("Continuar", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.W_600)
+                    e.control.content = ft.ProgressRing(width=20, height=20, color=COLOR_TEXTO_BLANCO, stroke_width=2)
+                    e.control.update()
                     
-                    sync_creditos_silencioso(celular_field.value)
-                    usuario_actualizado = AppDB.verificar_usuario(celular_field.value)
-                    tiene_paquete_activo = False
-                    if usuario_actualizado and str(usuario_actualizado.get('active_package', '')).lower().strip() == 'pagado':
-                        if usuario_actualizado.get('credits', 0) > 0: tiene_paquete_activo = True
-
-                    e.control.content = ft.Text("Continuar", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.W_600); e.control.update()
-                    
-                    # Guardamos sesión en RAM
-                    page.session.set("user_phone", celular_field.value)
-                    page.session.set("user_name", nombre_final)
-                    page.session.set("has_active_package", tiene_paquete_activo)
-                    
-                    # Guardamos sesión persistente para evitar desconexiones
                     try:
-                        page.client_storage.set("user_phone", celular_field.value)
-                        page.client_storage.set("user_name", nombre_final)
-                    except: pass
+                        usuario = AppDB.verificar_usuario(celular_field.value)
+                        if not usuario:
+                            AppDB.registrar_usuario(celular_field.value, nombre_field.value)
+                            nombre_final = nombre_field.value
+                        else:
+                            nombre_final = usuario.get('full_name', nombre_field.value)
+                        
+                        sync_creditos_silencioso(celular_field.value)
+                        usuario_actualizado = AppDB.verificar_usuario(celular_field.value)
+                        tiene_paquete_activo = False
+                        if usuario_actualizado and str(usuario_actualizado.get('active_package', '')).lower().strip() == 'pagado':
+                            if usuario_actualizado.get('credits', 0) > 0: tiene_paquete_activo = True
 
-                    page.go("/servicios" if tiene_paquete_activo else "/paquetes")
+                        page.session.set("user_phone", celular_field.value)
+                        page.session.set("user_name", nombre_final)
+                        page.session.set("has_active_package", tiene_paquete_activo)
+                        
+                        try:
+                            page.client_storage.set("user_phone", celular_field.value)
+                            page.client_storage.set("user_name", nombre_final)
+                        except: pass
+
+                        e.control.content = contenido_original
+                        e.control.update()
+                        page.go("/servicios" if tiene_paquete_activo else "/paquetes")
+                        
+                    except Exception as ex:
+                        print(f"Error de conexión BD: {ex}")
+                        e.control.content = contenido_original
+                        e.control.update()
+                        snack = ft.SnackBar(ft.Text("Error de conexión. Verifica tu internet.", color=COLOR_TEXTO_BLANCO), bgcolor=ft.colors.RED_500)
+                        page.overlay.append(snack)
+                        snack.open = True
+                        page.update()
 
             page.views.append(ft.View("/formulario_ingreso", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[
                 ft.Row([ft.IconButton(ft.icons.ARROW_BACK_IOS_NEW, icon_color=COLOR_RESPIRO, on_click=lambda _: page.go("/login")), ft.Container(expand=True)]),
@@ -180,7 +198,6 @@ def main(page: ft.Page):
             def pagar_bbva(e):
                 btn_bbva.content = ft.Row([ft.ProgressRing(width=20, height=20, color=COLOR_TEXTO_BLANCO, stroke_width=2), ft.Text(" Conectando al banco...", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER); btn_bbva.on_click = None; page.update()
                 
-                # Obtener datos garantizados (RAM o Storage)
                 telefono = page.session.get("user_phone") or page.client_storage.get("user_phone")
                 nombre = page.session.get("user_name") or page.client_storage.get("user_name")
                 
@@ -191,7 +208,6 @@ def main(page: ft.Page):
                 link = generar_enlace_pago(monto, f"Paquete Novum Pilates {monto}", nombre, telefono)
                 
                 if link:
-                    # Acción de apertura de ventana segura sin cerrar sesión
                     def abrir_banco(e):
                         page.launch_url(link, web_window_name="_blank")
                         page.go("/pago/verificando")
@@ -234,15 +250,16 @@ def main(page: ft.Page):
 
             def verificar_estado_pago_manual(e):
                 telefono_alumno = page.session.get("user_phone") or page.client_storage.get("user_phone")
+                AppDB.simular_webhook_banco(telefono_alumno)
                 sync_creditos_silencioso(telefono_alumno)
                 page.session.set("monto_pendiente", "")
                 page.go("/servicios")
 
-            btn_accion = ft.ElevatedButton("Comprobar Manualmente", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago_manual)
+            btn_accion = ft.ElevatedButton("Comprobar Manualmente (Bypass)", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago_manual)
             page.views.append(ft.View("/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Container(height=50), ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion]))
 
         # =========================================================================
-        # 4. SERVICIOS Y AGENDA ALUMNO (PALOMITA Y BLOQUEO DE DÍA)
+        # 4. SERVICIOS Y AGENDA ALUMNO 
         # =========================================================================
         elif page.route == "/servicios":
             telefono_alumno = page.session.get("user_phone") or page.client_storage.get("user_phone")
@@ -354,7 +371,7 @@ def main(page: ft.Page):
             ]))
             
         # =========================================================================
-        # 4.5 HISTORIAL Y PERFIL (RECARGA ANTI-PANTALLA BLANCA Y 12 HORAS MEXICO)
+        # 4.5 HISTORIAL Y PERFIL 
         # =========================================================================
         elif page.route == "/perfil":
             telefono_alumno = page.session.get("user_phone") or page.client_storage.get("user_phone")
@@ -443,24 +460,20 @@ def main(page: ft.Page):
                 fila_superior = ft.Row([ft.Text(res.get("servicio", "Clase"), size=16, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(expand=True), ft.Text(res.get("estado", "").capitalize(), size=12, color=COLOR_RESPIRO if is_futura else COLOR_RESPIRO_DARK, weight=ft.FontWeight.BOLD)])
                 elementos_tarjeta = [fila_superior, ft.Text(res.get("fecha", ""), size=14, color=COLOR_RESPIRO_DARK)]
                 if is_futura: elementos_tarjeta.append(ft.Row([ft.Container(expand=True), ft.TextButton("Cancelar Clase", icon=ft.icons.CANCEL, style=ft.ButtonStyle(color=ft.colors.RED_400), on_click=lambda e, r=res: preparar_cancelacion(r))]))
+                
                 lista_reservas_ui.controls.append(
-    ft.Container(
-        content=ft.Column(elementos_tarjeta, spacing=5),
-        bgcolor="white",
-        padding=20,
-        border_radius=15,
-        shadow=ft.BoxShadow(
-            blur_radius=5, 
-            color="#0A000000", 
-            offset=ft.Offset(0, 2)
-        )
-    )
-)
+                    ft.Container(
+                        content=ft.Column(elementos_tarjeta, spacing=5), 
+                        bgcolor="white", 
+                        padding=20, 
+                        border_radius=15, 
+                        shadow=ft.BoxShadow(blur_radius=5, color="#0A000000", offset=ft.Offset(0, 2))
+                    )
+                )
             
             if not mis_reservas: lista_reservas_ui.controls.append(ft.Text("Aún no tienes historial de reservas.", color=COLOR_RESPIRO_DARK))
             contenedor_reservas = ft.Container(content=lista_reservas_ui)
             
-            # --- FUNCIÓN DE CERRAR SESIÓN SEGURA ---
             def ejecutar_cierre_sesion(e):
                 page.session.clear()
                 try: 
@@ -478,7 +491,7 @@ def main(page: ft.Page):
             ]))
 
         # =========================================================================
-        # 5. PANEL ADMIN (CON DETALLES DE ALUMNOS)
+        # 5. PANEL ADMIN 
         # =========================================================================
         elif page.route == "/admin":
             fecha_activa = [datetime.date.today()]
@@ -503,7 +516,6 @@ def main(page: ft.Page):
             lista_agenda = ft.ListView(expand=True, spacing=10)
             lista_bloqueos = ft.ListView(expand=True, spacing=10)
             
-            # --- MODAL: VER ALUMNOS INSCRITOS ---
             dlg_detalles = ft.AlertDialog(title=ft.Text("Alumnos en la clase", color=COLOR_RESPIRO, weight="bold"), content=ft.Column([], scroll="auto", height=300, width=300), actions=[ft.TextButton("Cerrar", on_click=lambda _: setattr(dlg_detalles, 'open', False) or page.update())])
             page.overlay.append(dlg_detalles)
 
@@ -514,7 +526,7 @@ def main(page: ft.Page):
                 
                 alumnos = []
                 if hasattr(AppDB, 'obtener_alumnos_clase'): alumnos = AppDB.obtener_alumnos_clase(cid)
-                else: alumnos = [{"full_name": "¡Aviso! Agrega el método AppDB.obtener_alumnos_clase(class_id) a tu base de datos.", "active_package": "pagado"}]
+                else: alumnos = [{"full_name": "Error cargando alumnos", "active_package": "pagado"}]
 
                 dlg_detalles.content.controls.clear()
                 if not alumnos:
@@ -617,7 +629,7 @@ def main(page: ft.Page):
             ]))
 
         elif page.route == "/recargando":
-            pass # Puente para evitar la pantalla blanca
+            pass 
 
         page.update()
 
