@@ -196,13 +196,50 @@ def main(page: ft.Page):
                 ft.Container(height=450, content=ft.ListView(lista_tarjetas, horizontal=True, spacing=15))
             ]))
 
-        # 3. PAGOS Y VERIFICACIÓN
+        # =========================================================================
+        # 3. PAGOS Y VERIFICACIÓN (UNIFICADOS)
+        # =========================================================================
         elif page.route.startswith("/pago/") and not page.route.endswith("/verificando"):
             monto = page.route.split("/")[2]
             page.session.set("monto_pendiente", monto)
             
             btn_bbva = ft.Container(content=ft.Row([ft.Icon(ft.icons.CREDIT_CARD, color=COLOR_TEXTO_BLANCO), ft.Text("Pagar en línea (BBVA)", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor="#004481", padding=15, border_radius=12)
             
+            # --- UI QUE APARECE AL IR AL BANCO ---
+            estado_ui = ft.Container(
+                content=ft.Column([
+                    ft.ProgressRing(width=40, height=40, color=COLOR_RESPIRO, stroke_width=4), 
+                    ft.Container(height=10), 
+                    ft.Text("Esperando confirmación del banco...", size=16, color=COLOR_RESPIRO_DARK),
+                    ft.Container(height=10),
+                    ft.ElevatedButton("Ya pagué (Comprobar)", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=250, height=45, on_click=lambda _: verificar_estado_pago_manual(None))
+                ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), 
+                alignment=ft.alignment.center, 
+                visible=False 
+            )
+            
+            def auto_check_payment():
+                telefono_alumno = page.session.get("user_phone") or page.client_storage.get("user_phone")
+                if not telefono_alumno: return
+                for _ in range(60): 
+                    if page.route != f"/pago/{monto}": break 
+                    time.sleep(3)
+                    try:
+                        u = AppDB.verificar_usuario(telefono_alumno)
+                        if u and str(u.get('active_package', '')).lower().strip() == 'pagado':
+                            sync_creditos_silencioso(telefono_alumno)
+                            page.session.set("monto_pendiente", "")
+                            page.go("/servicios"); return
+                    except Exception: pass
+
+            def verificar_estado_pago_manual(e):
+                telefono_alumno = page.session.get("user_phone") or page.client_storage.get("user_phone")
+                if hasattr(AppDB, 'simular_webhook_banco'):
+                    AppDB.simular_webhook_banco(telefono_alumno)
+                sync_creditos_silencioso(telefono_alumno)
+                page.session.set("monto_pendiente", "")
+                page.go("/servicios")
+
             def pagar_bbva(e):
                 btn_bbva.content = ft.Row([ft.ProgressRing(width=20, height=20, color=COLOR_TEXTO_BLANCO, stroke_width=2), ft.Text(" Conectando al banco...", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER)
                 btn_bbva.on_click = None
@@ -221,12 +258,13 @@ def main(page: ft.Page):
                     btn_bbva.content = ft.Row([ft.Icon(ft.icons.LOCK_OUTLINE, color=COLOR_TEXTO_BLANCO), ft.Text("Toca aquí para ir a BBVA", color=COLOR_TEXTO_BLANCO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER)
                     btn_bbva.bgcolor = ft.colors.GREEN_600
                     
-                    # Enlace nativo para Apple/Safari
                     btn_bbva.url = link
                     btn_bbva.url_target = "_blank"
-                    btn_bbva.on_click = lambda _: page.go("/pago/verificando")
                     
+                    # Mostrar ruedita en esta misma pantalla
+                    estado_ui.visible = True
                     page.update()
+                    page.run_task(auto_check_payment)
                     
             btn_bbva.on_click = pagar_bbva
             
@@ -238,13 +276,16 @@ def main(page: ft.Page):
                 ft.Row([ft.IconButton(ft.icons.ARROW_BACK_IOS_NEW, icon_color=COLOR_RESPIRO, on_click=lambda _: page.go("/paquetes")), ft.Text("Checkout", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO)]), 
                 ft.Container(height=30), ft.Text(f"Total a pagar: ${monto}.00 MXN", size=22, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), 
                 ft.Text("Método de pago", size=14, weight=ft.FontWeight.BOLD, color=COLOR_RESPIRO_DARK), ft.Container(height=10), btn_bbva, ft.Container(height=15), 
-                ft.Container(content=ft.Row([ft.Icon(ft.icons.MONEY, color=COLOR_TEXTO_OSCURO), ft.Text("Pagar en Recepción", color=COLOR_TEXTO_OSCURO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor=COLOR_BG_CLARO, padding=15, border_radius=12, on_click=pagar_recepcion_click)
+                ft.Container(content=ft.Row([ft.Icon(ft.icons.MONEY, color=COLOR_TEXTO_OSCURO), ft.Text("Pagar en Recepción", color=COLOR_TEXTO_OSCURO, weight=ft.FontWeight.BOLD)], alignment=ft.MainAxisAlignment.CENTER), bgcolor=COLOR_BG_CLARO, padding=15, border_radius=12, on_click=pagar_recepcion_click),
+                ft.Container(height=20),
+                estado_ui
             ]))
             
+        # Ruta de contingencia para Apple (por si cierra y reinicia tu App)
         elif page.route == "/pago/verificando":
             estado_ui = ft.Container(content=ft.Column([ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4), ft.Container(height=20), ft.Text("Aprobando automáticamente...", size=16, color=COLOR_RESPIRO_DARK)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER), alignment=ft.alignment.center, height=300)
             
-            def auto_check_payment():
+            def auto_check_payment_recovery():
                 telefono_alumno = page.session.get("user_phone") or page.client_storage.get("user_phone")
                 if not telefono_alumno: return
                 for _ in range(60): 
@@ -258,9 +299,9 @@ def main(page: ft.Page):
                             page.go("/servicios"); return
                     except Exception: pass
             
-            page.run_task(auto_check_payment)
+            page.run_task(auto_check_payment_recovery)
 
-            def verificar_estado_pago_manual(e):
+            def verificar_estado_pago_manual_rec(e):
                 telefono_alumno = page.session.get("user_phone") or page.client_storage.get("user_phone")
                 if hasattr(AppDB, 'simular_webhook_banco'):
                     AppDB.simular_webhook_banco(telefono_alumno)
@@ -268,7 +309,7 @@ def main(page: ft.Page):
                 page.session.set("monto_pendiente", "")
                 page.go("/servicios")
 
-            btn_accion = ft.ElevatedButton("Comprobar Manualmente (Bypass)", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago_manual)
+            btn_accion = ft.ElevatedButton("Comprobar Manualmente (Bypass)", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago_manual_rec)
             page.views.append(ft.View("/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER, controls=[ft.Container(height=50), ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO), ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion]))
 
         # =========================================================================
