@@ -75,7 +75,8 @@ def main(page: ft.Page):
             return datetime.datetime.utcnow() - datetime.timedelta(hours=6)
 
     def limpiar_telefono(texto):
-        if not text: return ""
+        # BUG FIX: Se corrigió 'text' por 'texto' para evitar NameError
+        if not texto: return ""
         return "".join(ch for ch in str(texto) if ch.isdigit())
 
     def add_overlay_once(control):
@@ -203,8 +204,13 @@ def main(page: ft.Page):
 
         def do_login(e):
             nombre, celular = (nombre_field.value or "").strip(), limpiar_telefono(celular_field.value)
+            
             if not nombre or not celular:
                 mostrar_snack("Completa nombre y número celular.", ft.colors.RED_500)
+                return
+                
+            if len(celular) < 10:
+                mostrar_snack("Ingresa un número válido de 10 dígitos.", ft.colors.ORANGE_600)
                 return
 
             contenido_original = btn_continuar.content
@@ -571,11 +577,13 @@ def main(page: ft.Page):
             try:
                 usuario_actual = AppDB.verificar_usuario(telefono_alumno)
                 creditos_actuales = int(usuario_actual.get("credits", 0) if usuario_actual else 0)
+                
                 if creditos_actuales <= 0:
                     page.go("/paquetes")
                     return
+                    
                 if AppDB.reservar_clase(telefono_alumno, clase["id"]):
-                    # CORRECCIÓN DE BUG: Descontar el crédito en la BD tras confirmar reservación exitosa
+                    # FIX CREDITO: Descuenta de la BD directamente
                     AppDB.asignar_creditos(telefono_alumno, max(0, creditos_actuales - 1))
                     
                     mostrar_snack("¡Reserva confirmada! Se descontó 1 clase.", ft.colors.GREEN_600)
@@ -635,7 +643,7 @@ def main(page: ft.Page):
                 else: mostrar_snack("Aún no detectamos tu pago en la base de datos.", ft.colors.ORANGE_600)
                 e.control.content = original
                 page.update()
-                page.go("/recargando"); page.go("/perfil")
+                page.go("/perfil") 
             except Exception: mostrar_snack("Error refrescando tus clases.", ft.colors.RED_500)
 
         boton_refrescar = ft.Container(
@@ -658,10 +666,10 @@ def main(page: ft.Page):
                     u_actual = AppDB.verificar_usuario(telefono_alumno)
                     AppDB.asignar_creditos(telefono_alumno, int(u_actual.get("credits", 0) if u_actual else 0) + 1)
                 mostrar_snack("Sesión cancelada. Se aplicó la penalidad de 12 horas." if penalizar else "Sesión cancelada. Se devolvió 1 clase.", ft.colors.ORANGE_600 if penalizar else ft.colors.GREEN_600)
-                page.go("/recargando"); page.go("/perfil")
+                page.go("/perfil") 
             except Exception:
                 mostrar_snack("No fue posible cancelar la sesión.", ft.colors.RED_500)
-                page.go("/recargando"); page.go("/perfil")
+                page.go("/perfil") 
 
         dlg_cancelar.actions = [ft.TextButton("Volver", on_click=lambda _: setattr(dlg_cancelar, 'open', False) or page.update()), ft.ElevatedButton("Sí, Cancelar", bgcolor=ft.colors.RED_500, color="white", on_click=ejecutar_cancelacion_final)]
 
@@ -872,20 +880,17 @@ def main(page: ft.Page):
             ]
         )
 
-    def build_recargando_view():
-        return ft.View(route="/recargando", bgcolor=COLOR_BG_CLARO, controls=[ft.Container(expand=True, alignment=ft.alignment.center, content=ft.ProgressRing(color=COLOR_RESPIRO))])
-
     # -------------------------------------------------------------------------
-    # 5. ENRUTADOR CENTRAL CON INTERCEPTOR DE PANTALLA DE CARGA
+    # 5. ENRUTADOR CENTRAL
     # -------------------------------------------------------------------------
     def route_change(e):
-        import time # Necesario para la micropausa de carga
-        
-        # Muestra la interfaz de espera inmediatamente
+        import time
+
+        # CARGADOR INMEDIATO (Cubre todos los saltos de ruta, incluyendo retornos web)
         page.views.clear()
         page.views.append(
             ft.View(
-                route=page.route, # <--- ¡ESTO FALTABA! Mantiene la brújula de la app intacta
+                route=page.route,
                 bgcolor=COLOR_BG_CLARO,
                 padding=0,
                 controls=[
@@ -906,11 +911,8 @@ def main(page: ft.Page):
             )
         )
         page.update()
-        
-        # Obliga al navegador a renderizar la animación antes de trancar el hilo con la BD
         time.sleep(0.01)
 
-        # Evaluación de sesiones guardadas locales de forma interna
         if not page.session.get("user_phone"):
             tel_guardado = cs_get("user_phone", "")
             if tel_guardado:
@@ -931,7 +933,6 @@ def main(page: ft.Page):
                         except Exception as ex: 
                             print("Error recuperando usuario:", ex)
 
-        # Mapeo de vistas estáticas
         rutas_estaticas = {
             "/login": build_login_view,
             "/formulario_ingreso": build_formulario_view,
@@ -940,10 +941,8 @@ def main(page: ft.Page):
             "/servicios": build_servicios_view,
             "/perfil": build_perfil_view,
             "/admin": build_admin_view,
-            "/recargando": build_recargando_view
         }
 
-        # Determinación de vista final a construir
         if page.route in rutas_estaticas:
             nueva_vista = rutas_estaticas[page.route]()
         elif page.route.startswith("/pago/") and page.route != "/pago/verificando":
@@ -952,7 +951,6 @@ def main(page: ft.Page):
         else:
             nueva_vista = build_login_view()
 
-        # Inserción de la vista construida sobrepasando el cargador de forma limpia
         page.views.clear()
         page.views.append(nueva_vista)
         page.update()
