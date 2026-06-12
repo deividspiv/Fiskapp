@@ -4,7 +4,6 @@ from pagos import generar_enlace_pago
 import asyncio
 import datetime
 import os
-import time
 from zoneinfo import ZoneInfo
 
 # --- PALETA DE COLORES "RESPIRO" ---
@@ -313,7 +312,6 @@ def main(page: ft.Page):
             telefono_alumno = page.session.get("user_phone") or cs_get("user_phone", "")
             if not telefono_alumno: return
             
-            # Buscaremos hasta por 3 minutos (60 intentos de 3 segundos)
             for _ in range(60):
                 if page.route != f"/pago/{monto}": break
                 await asyncio.sleep(3)
@@ -344,8 +342,6 @@ def main(page: ft.Page):
                 mostrar_snack("No fue posible comprobar el pago.", ft.colors.RED_500)
 
         btn_comprobar = ft.ElevatedButton("Ya pagué (Comprobar)", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=250, height=45, on_click=verificar_estado_pago_manual)
-        
-        # Ocultamos este botón inicialmente y lo mostramos junto con el estado
         btn_comprobar_container = ft.Container(content=btn_comprobar, visible=False, margin=ft.margin.only(top=15))
         estado_ui.content.controls.append(btn_comprobar_container)
 
@@ -383,7 +379,6 @@ def main(page: ft.Page):
                     btn_comprobar_container.visible = True
                     page.update()
                     
-                    # FIX SAFARI PWA: Se abre en una pestaña NUEVA para no matar la memoria local de la actual
                     page.launch_url(link, web_window_name="_blank")
                     page.run_task(auto_check_payment)
                 else:
@@ -415,9 +410,6 @@ def main(page: ft.Page):
             ]
         )
 
-    # -------------------------------------------------------------------------
-    # VISTA DE INTERCEPCIÓN PARA LA PESTAÑA NUEVA (Return de Openpay)
-    # -------------------------------------------------------------------------
     def build_pago_completado_view():
         return ft.View(
             route="/completado",
@@ -575,7 +567,6 @@ def main(page: ft.Page):
             recargar_pantalla()
 
         def confirmar_reserva(e, clase):
-            # FIX ANTI-SPAM
             if e and e.control:
                 e.control.disabled = True
                 e.control.content = ft.ProgressRing(width=15, height=15, color=COLOR_TEXTO_BLANCO, stroke_width=2)
@@ -656,7 +647,6 @@ def main(page: ft.Page):
                 
                 page.route = "/recargando"
                 page.update()
-                time.sleep(0.01)
                 page.go("/perfil") 
             except Exception: mostrar_snack("Error refrescando tus clases.", ft.colors.RED_500)
 
@@ -685,7 +675,6 @@ def main(page: ft.Page):
             
             page.route = "/recargando"
             page.update()
-            time.sleep(0.01)
             page.go("/perfil") 
 
         dlg_cancelar.actions = [ft.TextButton("Volver", on_click=lambda _: setattr(dlg_cancelar, 'open', False) or page.update()), ft.ElevatedButton("Sí, Cancelar", bgcolor=ft.colors.RED_500, color="white", on_click=ejecutar_cancelacion_final)]
@@ -703,7 +692,6 @@ def main(page: ft.Page):
                     if dt_clase.tzinfo: dt_clase = dt_clase.replace(tzinfo=None)
                     if ahora_mexico.tzinfo: ahora_mexico = ahora_mexico.replace(tzinfo=None)
                     
-                    # FIX: Evaluación estricta (incluso números negativos si ya empezó)
                     horas_diff = (dt_clase - ahora_mexico).total_seconds() / 3600
                     if horas_diff <= 12: es_penalizable = True
             except Exception: pass
@@ -905,90 +893,91 @@ def main(page: ft.Page):
         return ft.View(route="/recargando", bgcolor=COLOR_BG_CLARO, controls=[ft.Container(expand=True, alignment=ft.alignment.center, content=ft.ProgressRing(color=COLOR_RESPIRO))])
 
     # -------------------------------------------------------------------------
-    # 5. ENRUTADOR CENTRAL CON INTERCEPTOR DE PANTALLA DE CARGA
+    # 5. ENRUTADOR CENTRAL
     # -------------------------------------------------------------------------
     def route_change(e):
-        # 1. Limpiamos cualquier parámetro ruidoso que Openpay inyecte en la URL (ej. ?id=trx...)
-        base_route = page.route.split("?")[0]
+        try:
+            # FIX SAFARI PWA: Extraer solo la ruta pura ignorando variables dinámicas de Openpay
+            base_route = page.route.split("?")[0]
 
-        # Muestra la interfaz de espera inmediatamente
-        page.views.clear()
-        page.views.append(
-            ft.View(
-                route=base_route,
-                bgcolor=COLOR_BG_CLARO,
-                padding=0,
-                controls=[
-                    ft.Container(
-                        expand=True,
-                        alignment=ft.alignment.center,
-                        content=ft.Column(
-                            controls=[
-                                ft.ProgressRing(width=45, height=45, color=COLOR_RESPIRO, stroke_width=4),
-                                ft.Container(height=15),
-                                ft.Text("Preparando tu espacio...", color=COLOR_RESPIRO_DARK, size=15, weight=ft.FontWeight.W_500)
-                            ],
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            page.views.clear()
+            page.views.append(
+                ft.View(
+                    route=base_route,
+                    bgcolor=COLOR_BG_CLARO,
+                    padding=0,
+                    controls=[
+                        ft.Container(
+                            expand=True,
+                            alignment=ft.alignment.center,
+                            content=ft.Column(
+                                controls=[
+                                    ft.ProgressRing(width=45, height=45, color=COLOR_RESPIRO, stroke_width=4),
+                                    ft.Container(height=15),
+                                    ft.Text("Preparando tu espacio...", color=COLOR_RESPIRO_DARK, size=15, weight=ft.FontWeight.W_500)
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                            )
                         )
-                    )
-                ]
+                    ]
+                )
             )
-        )
-        page.update()
-        time.sleep(0.01)
+            page.update()
 
-        # Evaluación de sesiones guardadas locales de forma interna
-        if not page.session.get("user_phone"):
-            tel_guardado = cs_get("user_phone", "")
-            if tel_guardado:
-                page.session.set("user_phone", tel_guardado)
-                page.session.set("user_name", cs_get("user_name", ""))
-                page.session.set("monto_pendiente", cs_get("monto_pendiente", ""))
-                
-                if base_route in ["/login", "/"]:
-                    if cs_get("monto_pendiente", ""):
-                        base_route = "/pago/verificando"
-                    else:
-                        try:
-                            usuario_rec = AppDB.verificar_usuario(tel_guardado)
-                            if usuario_rec and str(usuario_rec.get("active_package", "")).lower().strip() == "pagado" and int(usuario_rec.get("credits", 0) or 0) > 0:
-                                base_route = "/servicios"
-                            else: 
-                                base_route = "/paquetes"
-                        except Exception as ex: 
-                            print("Error recuperando usuario:", ex)
+            if not page.session.get("user_phone"):
+                tel_guardado = cs_get("user_phone", "")
+                if tel_guardado:
+                    page.session.set("user_phone", tel_guardado)
+                    page.session.set("user_name", cs_get("user_name", ""))
+                    page.session.set("monto_pendiente", cs_get("monto_pendiente", ""))
+                    
+                    if base_route in ["/login", "/"]:
+                        if cs_get("monto_pendiente", ""):
+                            base_route = "/pago/verificando"
+                        else:
+                            try:
+                                usuario_rec = AppDB.verificar_usuario(tel_guardado)
+                                if usuario_rec and str(usuario_rec.get("active_package", "")).lower().strip() == "pagado" and int(usuario_rec.get("credits", 0) or 0) > 0:
+                                    base_route = "/servicios"
+                                else: 
+                                    base_route = "/paquetes"
+                            except Exception as ex: 
+                                print("Error recuperando usuario:", ex)
 
-        # FIX SAFARI PWA: Interceptar el retorno de Openpay
-        if "?id=" in page.route:
-            base_route = "/completado"
+            # Si regresamos de openpay en pestaña nueva, mostramos confirmación.
+            if "?id=" in page.route:
+                base_route = "/completado"
 
-        # Mapeo de vistas estáticas
-        rutas_estaticas = {
-            "/login": build_login_view,
-            "/formulario_ingreso": build_formulario_view,
-            "/paquetes": build_paquetes_view,
-            "/pago/verificando": build_verificando_view,
-            "/completado": build_pago_completado_view,
-            "/servicios": build_servicios_view,
-            "/perfil": build_perfil_view,
-            "/admin": build_admin_view,
-            "/recargando": build_recargando_view
-        }
+            rutas_estaticas = {
+                "/login": build_login_view,
+                "/formulario_ingreso": build_formulario_view,
+                "/paquetes": build_paquetes_view,
+                "/pago/verificando": build_verificando_view,
+                "/completado": build_pago_completado_view,
+                "/servicios": build_servicios_view,
+                "/perfil": build_perfil_view,
+                "/admin": build_admin_view,
+                "/recargando": build_recargando_view
+            }
 
-        # Determinación de vista final a construir
-        if base_route in rutas_estaticas:
-            nueva_vista = rutas_estaticas[base_route]()
-        elif base_route.startswith("/pago/") and base_route != "/pago/verificando":
-            monto = base_route.split("/")[2]
-            nueva_vista = build_pago_view(monto)
-        else:
-            nueva_vista = build_login_view()
+            if base_route in rutas_estaticas:
+                nueva_vista = rutas_estaticas[base_route]()
+            elif base_route.startswith("/pago/") and base_route != "/pago/verificando":
+                monto = base_route.split("/")[2]
+                nueva_vista = build_pago_view(monto)
+            else:
+                nueva_vista = build_login_view()
 
-        # Inserción de la vista construida
-        page.views.clear()
-        page.views.append(nueva_vista)
-        page.update()
+            page.views.clear()
+            page.views.append(nueva_vista)
+            page.update()
+        except Exception as e_route:
+            print("Error en enrutador central:", e_route)
+            page.views.clear()
+            page.views.append(build_login_view())
+            page.update()
+            mostrar_snack("Hubo un error de conexión, intenta de nuevo.", ft.colors.RED_500)
 
     def view_pop(e):
         if len(page.views) > 1:
