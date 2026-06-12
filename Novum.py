@@ -4,6 +4,7 @@ from pagos import generar_enlace_pago
 import asyncio
 import datetime
 import os
+import time
 from zoneinfo import ZoneInfo
 
 # --- PALETA DE COLORES "RESPIRO" ---
@@ -75,7 +76,6 @@ def main(page: ft.Page):
             return datetime.datetime.utcnow() - datetime.timedelta(hours=6)
 
     def limpiar_telefono(texto):
-        # BUG FIX: Se corrigió 'text' por 'texto' para evitar NameError
         if not texto: return ""
         return "".join(ch for ch in str(texto) if ch.isdigit())
 
@@ -541,18 +541,34 @@ def main(page: ft.Page):
                 if not clases_del_dia:
                     horarios_ui.controls.append(ft.Text(f"No hay clases de {vista_estado['servicio_activo']} programadas.", color=COLOR_RESPIRO_DARK))
 
+                ahora_mx = obtener_ahora_mexico().replace(tzinfo=None)
+
                 for h in clases_del_dia:
                     cupo_actual = int(h.get("cupo", 0) or 0)
                     is_full = cupo_actual <= 0
                     ya_agendado = h.get("id") in clases_agendadas
+                    
+                    # BUG FIX: Verificar si la clase ya pasó según el horario actual
+                    try:
+                        dt_str = f"{fecha_str} {h.get('hora')}"
+                        try:
+                            dt_clase = datetime.datetime.strptime(dt_str, "%Y-%m-%d %I:%M %p")
+                        except ValueError:
+                            dt_clase = datetime.datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+                        ya_paso = ahora_mx >= dt_clase
+                    except Exception:
+                        ya_paso = False
 
-                    if ya_agendado:
+                    if ya_paso:
+                        btn_color, btn_text, text_btn_color, accion_btn = "#E5E5EA", "Finalizada", COLOR_RESPIRO_DARK, None
+                    elif ya_agendado:
                         btn_color, btn_text, text_btn_color, accion_btn = ft.colors.GREEN_500, "Agendado ✓", COLOR_TEXTO_BLANCO, lambda _: page.go("/perfil")
                     elif dia_ya_reservado:
                         btn_color, btn_text, text_btn_color, accion_btn = "#E5E5EA", "Día Reservado", COLOR_RESPIRO_DARK, None
                     else:
                         btn_color, btn_text, text_btn_color = "#E5E5EA" if is_full else COLOR_CREMA_BOTON, "Lleno" if is_full else "Reservar", COLOR_RESPIRO_DARK if is_full else "#6b5b50"
-                        accion_btn = (lambda e, c=h: confirmar_reserva(c)) if not is_full else None
+                        # Pasamos el evento (e) para poder bloquear el botón y evitar el "spam"
+                        accion_btn = (lambda e, c=h: confirmar_reserva(e, c)) if not is_full else None
 
                     horarios_ui.controls.append(
                         ft.Container(
@@ -573,7 +589,13 @@ def main(page: ft.Page):
             vista_estado["servicio_activo"] = nuevo_servicio
             recargar_pantalla()
 
-        def confirmar_reserva(clase):
+        def confirmar_reserva(e, clase):
+            # BUG FIX: Bloquear botón de inmediato para evitar spam clicks
+            if e and e.control:
+                e.control.disabled = True
+                e.control.content = ft.ProgressRing(width=15, height=15, color=COLOR_TEXTO_BLANCO, stroke_width=2)
+                page.update()
+
             try:
                 usuario_actual = AppDB.verificar_usuario(telefono_alumno)
                 creditos_actuales = int(usuario_actual.get("credits", 0) if usuario_actual else 0)
@@ -583,16 +605,20 @@ def main(page: ft.Page):
                     return
                     
                 if AppDB.reservar_clase(telefono_alumno, clase["id"]):
-                    # FIX CREDITO: Descuenta de la BD directamente
                     AppDB.asignar_creditos(telefono_alumno, max(0, creditos_actuales - 1))
-                    
                     mostrar_snack("¡Reserva confirmada! Se descontó 1 clase.", ft.colors.GREEN_600)
                     recargar_pantalla()
                 else:
                     mostrar_snack("No fue posible reservar la clase.", ft.colors.RED_500)
+                    if e and e.control:
+                        e.control.disabled = False
+                        page.update()
             except Exception as ex:
                 print("Error reservando clase:", ex)
                 mostrar_snack("Error al reservar la clase.", ft.colors.RED_500)
+                if e and e.control:
+                    e.control.disabled = False
+                    page.update()
 
         recargar_pantalla()
 
@@ -642,7 +668,11 @@ def main(page: ft.Page):
                     mostrar_snack("¡Tus clases han sido sincronizadas!", ft.colors.GREEN_600)
                 else: mostrar_snack("Aún no detectamos tu pago en la base de datos.", ft.colors.ORANGE_600)
                 e.control.content = original
+                
+                # BUG FIX: Solución del router ignorando la ruta repetida
+                page.route = "/recargando"
                 page.update()
+                time.sleep(0.01)
                 page.go("/perfil") 
             except Exception: mostrar_snack("Error refrescando tus clases.", ft.colors.RED_500)
 
@@ -666,10 +696,14 @@ def main(page: ft.Page):
                     u_actual = AppDB.verificar_usuario(telefono_alumno)
                     AppDB.asignar_creditos(telefono_alumno, int(u_actual.get("credits", 0) if u_actual else 0) + 1)
                 mostrar_snack("Sesión cancelada. Se aplicó la penalidad de 12 horas." if penalizar else "Sesión cancelada. Se devolvió 1 clase.", ft.colors.ORANGE_600 if penalizar else ft.colors.GREEN_600)
-                page.go("/perfil") 
             except Exception:
                 mostrar_snack("No fue posible cancelar la sesión.", ft.colors.RED_500)
-                page.go("/perfil") 
+            
+            # BUG FIX: Solución del router ignorando la ruta repetida
+            page.route = "/recargando"
+            page.update()
+            time.sleep(0.01)
+            page.go("/perfil") 
 
         dlg_cancelar.actions = [ft.TextButton("Volver", on_click=lambda _: setattr(dlg_cancelar, 'open', False) or page.update()), ft.ElevatedButton("Sí, Cancelar", bgcolor=ft.colors.RED_500, color="white", on_click=ejecutar_cancelacion_final)]
 
@@ -685,8 +719,12 @@ def main(page: ft.Page):
                     ahora_mexico = obtener_ahora_mexico()
                     if dt_clase.tzinfo: dt_clase = dt_clase.replace(tzinfo=None)
                     if ahora_mexico.tzinfo: ahora_mexico = ahora_mexico.replace(tzinfo=None)
-                    if 0 < (dt_clase - ahora_mexico).total_seconds() / 3600 <= 12: es_penalizable = True
+                    
+                    # BUG FIX: Evaluación estricta de tiempo de penalización
+                    horas_diff = (dt_clase - ahora_mexico).total_seconds() / 3600
+                    if horas_diff <= 12: es_penalizable = True
             except Exception: pass
+            
             aplica_penalizacion[0] = es_penalizable
             dlg_cancelar.content = ft.Text("Faltan menos de 12 horas para tu clase. Si cancelas ahora perderás esta clase.\n\n¿Deseas cancelarla de todos modos?", color=ft.colors.RED_600) if es_penalizable else ft.Text("¿Estás seguro de que deseas cancelar tu clase?\n\nTu crédito será devuelto automáticamente.")
             dlg_cancelar.open = True
@@ -880,13 +918,14 @@ def main(page: ft.Page):
             ]
         )
 
+    def build_recargando_view():
+        return ft.View(route="/recargando", bgcolor=COLOR_BG_CLARO, controls=[ft.Container(expand=True, alignment=ft.alignment.center, content=ft.ProgressRing(color=COLOR_RESPIRO))])
+
     # -------------------------------------------------------------------------
-    # 5. ENRUTADOR CENTRAL
+    # 5. ENRUTADOR CENTRAL CON INTERCEPTOR DE PANTALLA DE CARGA
     # -------------------------------------------------------------------------
     def route_change(e):
-        import time
-
-        # CARGADOR INMEDIATO (Cubre todos los saltos de ruta, incluyendo retornos web)
+        # Muestra la interfaz de espera inmediatamente
         page.views.clear()
         page.views.append(
             ft.View(
@@ -911,8 +950,11 @@ def main(page: ft.Page):
             )
         )
         page.update()
+        
+        # Obliga al navegador a renderizar la animación antes de trancar el hilo con la BD
         time.sleep(0.01)
 
+        # Evaluación de sesiones guardadas locales de forma interna
         if not page.session.get("user_phone"):
             tel_guardado = cs_get("user_phone", "")
             if tel_guardado:
@@ -933,6 +975,7 @@ def main(page: ft.Page):
                         except Exception as ex: 
                             print("Error recuperando usuario:", ex)
 
+        # Mapeo de vistas estáticas
         rutas_estaticas = {
             "/login": build_login_view,
             "/formulario_ingreso": build_formulario_view,
@@ -941,8 +984,10 @@ def main(page: ft.Page):
             "/servicios": build_servicios_view,
             "/perfil": build_perfil_view,
             "/admin": build_admin_view,
+            "/recargando": build_recargando_view
         }
 
+        # Determinación de vista final a construir
         if page.route in rutas_estaticas:
             nueva_vista = rutas_estaticas[page.route]()
         elif page.route.startswith("/pago/") and page.route != "/pago/verificando":
@@ -951,6 +996,7 @@ def main(page: ft.Page):
         else:
             nueva_vista = build_login_view()
 
+        # Inserción de la vista construida sobrepasando el cargador de forma limpia
         page.views.clear()
         page.views.append(nueva_vista)
         page.update()
