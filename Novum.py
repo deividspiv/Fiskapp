@@ -879,10 +879,13 @@ def main(page: ft.Page):
     # 5. ENRUTADOR CENTRAL CON INTERCEPTOR DE PANTALLA DE CARGA
     # -------------------------------------------------------------------------
     def route_change(e):
-        # Muestra la interfaz de espera inmediatamente (evita pantallazos blancos al cambiar cualquier ruta)
+        import time # Necesario para la micropausa de carga
+        
+        # Muestra la interfaz de espera inmediatamente
         page.views.clear()
         page.views.append(
             ft.View(
+                route=page.route, # <--- ¡ESTO FALTABA! Mantiene la brújula de la app intacta
                 bgcolor=COLOR_BG_CLARO,
                 padding=0,
                 controls=[
@@ -903,6 +906,9 @@ def main(page: ft.Page):
             )
         )
         page.update()
+        
+        # Obliga al navegador a renderizar la animación antes de trancar el hilo con la BD
+        time.sleep(0.01)
 
         # Evaluación de sesiones guardadas locales de forma interna
         if not page.session.get("user_phone"):
