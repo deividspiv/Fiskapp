@@ -377,7 +377,6 @@ def main(page: ft.Page):
                     btn_bbva.bgcolor = ft.colors.GREEN_600
                     estado_ui.visible = True
                     page.update()
-                    # FIX: Forzando apertura en la misma ventana para evitar problemas en Safari
                     page.launch_url(link, web_window_name="_self")
                     page.run_task(auto_check_payment)
                 else:
@@ -428,7 +427,6 @@ def main(page: ft.Page):
         )
 
         async def auto_check_payment_recovery():
-            # FIX SAFARI: Darle 2 segundos a iOS para reconectar el WebSocket y leer el storage
             await asyncio.sleep(2) 
             telefono_alumno = page.session.get("user_phone") or cs_get("user_phone", "")
             
@@ -440,9 +438,9 @@ def main(page: ft.Page):
                 return
 
             intentos = 0
-            # 15 intentos de 3 segundos = 45 segundos de espera máxima
+            base_route = page.route.split("?")[0]
             while intentos < 15:
-                if page.route != "/pago/verificando": 
+                if base_route != "/pago/verificando": 
                     break
                     
                 try:
@@ -459,8 +457,8 @@ def main(page: ft.Page):
                 intentos += 1
                 await asyncio.sleep(3)
 
-            # FIX UX: Si pasaron los 45 segundos y el banco no respondió
-            if page.route == "/pago/verificando":
+            base_route = page.route.split("?")[0]
+            if base_route == "/pago/verificando":
                 anillo_carga.visible = False
                 estado_texto.value = "El banco está tardando. Toca el botón de Bypass."
                 estado_texto.color = ft.colors.ORANGE_600
@@ -592,7 +590,6 @@ def main(page: ft.Page):
                     is_full = cupo_actual <= 0
                     ya_agendado = h.get("id") in clases_agendadas
                     
-                    # Verificación si la clase ya pasó
                     try:
                         dt_str = f"{fecha_str} {h.get('hora')}"
                         try:
@@ -611,7 +608,6 @@ def main(page: ft.Page):
                         btn_color, btn_text, text_btn_color, accion_btn = "#E5E5EA", "Día Reservado", COLOR_RESPIRO_DARK, None
                     else:
                         btn_color, btn_text, text_btn_color = "#E5E5EA" if is_full else COLOR_CREMA_BOTON, "Lleno" if is_full else "Reservar", COLOR_RESPIRO_DARK if is_full else "#6b5b50"
-                        # FIX ANTI-SPAM: Pasamos el evento (e) para deshabilitarlo al toque
                         accion_btn = (lambda e, c=h: confirmar_reserva(e, c)) if not is_full else None
 
                     horarios_ui.controls.append(
@@ -634,7 +630,6 @@ def main(page: ft.Page):
             recargar_pantalla()
 
         def confirmar_reserva(e, clase):
-            # FIX ANTI-SPAM: Bloqueo inmediato del botón
             if e and e.control:
                 e.control.disabled = True
                 e.control.content = ft.ProgressRing(width=15, height=15, color=COLOR_TEXTO_BLANCO, stroke_width=2)
@@ -649,7 +644,6 @@ def main(page: ft.Page):
                     return
                     
                 if AppDB.reservar_clase(telefono_alumno, clase["id"]):
-                    # Descuento asíncrono
                     AppDB.asignar_creditos(telefono_alumno, max(0, creditos_actuales - 1))
                     mostrar_snack("¡Reserva confirmada! Se descontó 1 clase.", ft.colors.GREEN_600)
                     recargar_pantalla()
@@ -763,7 +757,6 @@ def main(page: ft.Page):
                     if dt_clase.tzinfo: dt_clase = dt_clase.replace(tzinfo=None)
                     if ahora_mexico.tzinfo: ahora_mexico = ahora_mexico.replace(tzinfo=None)
                     
-                    # FIX: Evaluación estricta de las 12 horas.
                     horas_diff = (dt_clase - ahora_mexico).total_seconds() / 3600
                     if horas_diff <= 12: es_penalizable = True
             except Exception: pass
@@ -968,11 +961,13 @@ def main(page: ft.Page):
     # 5. ENRUTADOR CENTRAL CON INTERCEPTOR DE PANTALLA DE CARGA
     # -------------------------------------------------------------------------
     def route_change(e):
-        # Muestra la interfaz de espera inmediatamente
+        # Mapeo universal de rutas limpiando parámetros basura de Openpay (?id=trx...)
+        base_route = page.route.split("?")[0]
+        
         page.views.clear()
         page.views.append(
             ft.View(
-                route=page.route,
+                route=base_route,
                 bgcolor=COLOR_BG_CLARO,
                 padding=0,
                 controls=[
@@ -994,10 +989,8 @@ def main(page: ft.Page):
         )
         page.update()
         
-        # Obliga al navegador a renderizar la animación antes de trancar el hilo con la BD
         time.sleep(0.01)
 
-        # Evaluación de sesiones guardadas locales de forma interna
         if not page.session.get("user_phone"):
             tel_guardado = cs_get("user_phone", "")
             if tel_guardado:
@@ -1005,20 +998,19 @@ def main(page: ft.Page):
                 page.session.set("user_name", cs_get("user_name", ""))
                 page.session.set("monto_pendiente", cs_get("monto_pendiente", ""))
                 
-                if page.route in ["/login", "/"]:
+                if base_route in ["/login", "/"]:
                     if cs_get("monto_pendiente", ""):
-                        page.route = "/pago/verificando"
+                        base_route = "/pago/verificando"
                     else:
                         try:
                             usuario_rec = AppDB.verificar_usuario(tel_guardado)
                             if usuario_rec and str(usuario_rec.get("active_package", "")).lower().strip() == "pagado" and int(usuario_rec.get("credits", 0) or 0) > 0:
-                                page.route = "/servicios"
+                                base_route = "/servicios"
                             else: 
-                                page.route = "/paquetes"
+                                base_route = "/paquetes"
                         except Exception as ex: 
                             print("Error recuperando usuario:", ex)
 
-        # Mapeo de vistas estáticas
         rutas_estaticas = {
             "/login": build_login_view,
             "/formulario_ingreso": build_formulario_view,
@@ -1030,16 +1022,14 @@ def main(page: ft.Page):
             "/recargando": build_recargando_view
         }
 
-        # Determinación de vista final a construir
-        if page.route in rutas_estaticas:
-            nueva_vista = rutas_estaticas[page.route]()
-        elif page.route.startswith("/pago/") and page.route != "/pago/verificando":
-            monto = page.route.split("/")[2]
+        if base_route in rutas_estaticas:
+            nueva_vista = rutas_estaticas[base_route]()
+        elif base_route.startswith("/pago/") and base_route != "/pago/verificando":
+            monto = base_route.split("/")[2]
             nueva_vista = build_pago_view(monto)
         else:
             nueva_vista = build_login_view()
 
-        # Inserción de la vista construida sobrepasando el cargador de forma limpia
         page.views.clear()
         page.views.append(nueva_vista)
         page.update()
@@ -1047,7 +1037,7 @@ def main(page: ft.Page):
     def view_pop(e):
         if len(page.views) > 1:
             page.views.pop()
-            page.go(page.views[-1].route)
+            page.go(page.views[-1].route.split("?")[0])
         else:
             page.go("/login")
 
