@@ -377,6 +377,7 @@ def main(page: ft.Page):
                     btn_bbva.bgcolor = ft.colors.GREEN_600
                     estado_ui.visible = True
                     page.update()
+                    # FIX: Forzando apertura en la misma ventana para evitar problemas en Safari
                     page.launch_url(link, web_window_name="_self")
                     page.run_task(auto_check_payment)
                 else:
@@ -409,17 +410,41 @@ def main(page: ft.Page):
         )
 
     def build_verificando_view():
+        estado_texto = ft.Text("Aprobando automáticamente...", size=16, color=COLOR_RESPIRO_DARK)
+        anillo_carga = ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4)
+        
         estado_ui = ft.Container(
-            content=ft.Column(controls=[ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4), ft.Container(height=20), ft.Text("Aprobando automáticamente...", size=16, color=COLOR_RESPIRO_DARK)], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
-            alignment=ft.alignment.center, height=300
+            content=ft.Column(
+                controls=[
+                    anillo_carga, 
+                    ft.Container(height=20), 
+                    estado_texto
+                ], 
+                alignment=ft.MainAxisAlignment.CENTER, 
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            ),
+            alignment=ft.alignment.center, 
+            height=300
         )
 
         async def auto_check_payment_recovery():
+            # FIX SAFARI: Darle 2 segundos a iOS para reconectar el WebSocket y leer el storage
+            await asyncio.sleep(2) 
             telefono_alumno = page.session.get("user_phone") or cs_get("user_phone", "")
-            if not telefono_alumno: return
-            for _ in range(60):
-                if page.route != "/pago/verificando": break
-                await asyncio.sleep(2)
+            
+            if not telefono_alumno:
+                anillo_carga.visible = False
+                estado_texto.value = "No se pudo recuperar la sesión. Usa el botón manual."
+                estado_texto.color = ft.colors.RED_500
+                page.update()
+                return
+
+            intentos = 0
+            # 15 intentos de 3 segundos = 45 segundos de espera máxima
+            while intentos < 15:
+                if page.route != "/pago/verificando": 
+                    break
+                    
                 try:
                     u = AppDB.verificar_usuario(telefono_alumno)
                     if u and str(u.get("active_package", "")).lower().strip() == "pagado":
@@ -430,6 +455,16 @@ def main(page: ft.Page):
                         return
                 except Exception as ex:
                     print("Error verificando pago recovery:", ex)
+                
+                intentos += 1
+                await asyncio.sleep(3)
+
+            # FIX UX: Si pasaron los 45 segundos y el banco no respondió
+            if page.route == "/pago/verificando":
+                anillo_carga.visible = False
+                estado_texto.value = "El banco está tardando. Toca el botón de Bypass."
+                estado_texto.color = ft.colors.ORANGE_600
+                page.update()
 
         page.run_task(auto_check_payment_recovery)
 
@@ -439,7 +474,9 @@ def main(page: ft.Page):
                 mostrar_snack("No se encontró el usuario actual.", ft.colors.RED_500)
                 return
             try:
-                if hasattr(AppDB, "simular_webhook_banco"): AppDB.simular_webhook_banco(telefono_alumno)
+                if hasattr(AppDB, "simular_webhook_banco"): 
+                    AppDB.simular_webhook_banco(telefono_alumno)
+                
                 sync_creditos_silencioso(telefono_alumno)
                 page.session.set("monto_pendiente", "")
                 cs_remove("monto_pendiente")
@@ -448,7 +485,14 @@ def main(page: ft.Page):
                 print("Error en bypass de pago:", ex)
                 mostrar_snack("No fue posible comprobar el pago.", ft.colors.RED_500)
 
-        btn_accion = ft.ElevatedButton("Comprobar Manualmente (Bypass)", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=300, height=50, on_click=verificar_estado_pago_manual_rec)
+        btn_accion = ft.ElevatedButton(
+            "Comprobar Manualmente (Bypass)", 
+            color=COLOR_TEXTO_BLANCO, 
+            bgcolor=COLOR_RESPIRO, 
+            width=300, 
+            height=50, 
+            on_click=verificar_estado_pago_manual_rec
+        )
 
         return ft.View(
             route="/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -548,7 +592,7 @@ def main(page: ft.Page):
                     is_full = cupo_actual <= 0
                     ya_agendado = h.get("id") in clases_agendadas
                     
-                    # BUG FIX: Verificar si la clase ya pasó según el horario actual
+                    # Verificación si la clase ya pasó
                     try:
                         dt_str = f"{fecha_str} {h.get('hora')}"
                         try:
@@ -567,7 +611,7 @@ def main(page: ft.Page):
                         btn_color, btn_text, text_btn_color, accion_btn = "#E5E5EA", "Día Reservado", COLOR_RESPIRO_DARK, None
                     else:
                         btn_color, btn_text, text_btn_color = "#E5E5EA" if is_full else COLOR_CREMA_BOTON, "Lleno" if is_full else "Reservar", COLOR_RESPIRO_DARK if is_full else "#6b5b50"
-                        # Pasamos el evento (e) para poder bloquear el botón y evitar el "spam"
+                        # FIX ANTI-SPAM: Pasamos el evento (e) para deshabilitarlo al toque
                         accion_btn = (lambda e, c=h: confirmar_reserva(e, c)) if not is_full else None
 
                     horarios_ui.controls.append(
@@ -590,7 +634,7 @@ def main(page: ft.Page):
             recargar_pantalla()
 
         def confirmar_reserva(e, clase):
-            # BUG FIX: Bloquear botón de inmediato para evitar spam clicks
+            # FIX ANTI-SPAM: Bloqueo inmediato del botón
             if e and e.control:
                 e.control.disabled = True
                 e.control.content = ft.ProgressRing(width=15, height=15, color=COLOR_TEXTO_BLANCO, stroke_width=2)
@@ -605,6 +649,7 @@ def main(page: ft.Page):
                     return
                     
                 if AppDB.reservar_clase(telefono_alumno, clase["id"]):
+                    # Descuento asíncrono
                     AppDB.asignar_creditos(telefono_alumno, max(0, creditos_actuales - 1))
                     mostrar_snack("¡Reserva confirmada! Se descontó 1 clase.", ft.colors.GREEN_600)
                     recargar_pantalla()
@@ -669,7 +714,6 @@ def main(page: ft.Page):
                 else: mostrar_snack("Aún no detectamos tu pago en la base de datos.", ft.colors.ORANGE_600)
                 e.control.content = original
                 
-                # BUG FIX: Solución del router ignorando la ruta repetida
                 page.route = "/recargando"
                 page.update()
                 time.sleep(0.01)
@@ -699,7 +743,6 @@ def main(page: ft.Page):
             except Exception:
                 mostrar_snack("No fue posible cancelar la sesión.", ft.colors.RED_500)
             
-            # BUG FIX: Solución del router ignorando la ruta repetida
             page.route = "/recargando"
             page.update()
             time.sleep(0.01)
@@ -720,7 +763,7 @@ def main(page: ft.Page):
                     if dt_clase.tzinfo: dt_clase = dt_clase.replace(tzinfo=None)
                     if ahora_mexico.tzinfo: ahora_mexico = ahora_mexico.replace(tzinfo=None)
                     
-                    # BUG FIX: Evaluación estricta de tiempo de penalización
+                    # FIX: Evaluación estricta de las 12 horas.
                     horas_diff = (dt_clase - ahora_mexico).total_seconds() / 3600
                     if horas_diff <= 12: es_penalizable = True
             except Exception: pass
