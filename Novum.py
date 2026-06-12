@@ -4,6 +4,7 @@ from pagos import generar_enlace_pago
 import asyncio
 import datetime
 import os
+import time
 from zoneinfo import ZoneInfo
 
 # --- PALETA DE COLORES "RESPIRO" ---
@@ -312,6 +313,7 @@ def main(page: ft.Page):
             telefono_alumno = page.session.get("user_phone") or cs_get("user_phone", "")
             if not telefono_alumno: return
             
+            # Buscaremos hasta por 3 minutos (60 intentos de 3 segundos)
             for _ in range(60):
                 if page.route != f"/pago/{monto}": break
                 await asyncio.sleep(3)
@@ -342,6 +344,8 @@ def main(page: ft.Page):
                 mostrar_snack("No fue posible comprobar el pago.", ft.colors.RED_500)
 
         btn_comprobar = ft.ElevatedButton("Ya pagué (Comprobar)", color=COLOR_TEXTO_BLANCO, bgcolor=COLOR_RESPIRO, width=250, height=45, on_click=verificar_estado_pago_manual)
+        
+        # Ocultamos este botón inicialmente y lo mostramos junto con el estado
         btn_comprobar_container = ft.Container(content=btn_comprobar, visible=False, margin=ft.margin.only(top=15))
         estado_ui.content.controls.append(btn_comprobar_container)
 
@@ -379,6 +383,7 @@ def main(page: ft.Page):
                     btn_comprobar_container.visible = True
                     page.update()
                     
+                    # PWA Fix: Forzar ventana nueva (blank)
                     page.launch_url(link, web_window_name="_blank")
                     page.run_task(auto_check_payment)
                 else:
@@ -410,6 +415,9 @@ def main(page: ft.Page):
             ]
         )
 
+    # -------------------------------------------------------------------------
+    # VISTA DE INTERCEPCIÓN PARA LA PESTAÑA NUEVA (Return de Openpay)
+    # -------------------------------------------------------------------------
     def build_pago_completado_view():
         return ft.View(
             route="/completado",
@@ -435,6 +443,99 @@ def main(page: ft.Page):
                         horizontal_alignment=ft.CrossAxisAlignment.CENTER
                     )
                 )
+            ]
+        )
+
+    def build_verificando_view():
+        estado_texto = ft.Text("Aprobando automáticamente...", size=16, color=COLOR_RESPIRO_DARK)
+        anillo_carga = ft.ProgressRing(width=60, height=60, color=COLOR_RESPIRO, stroke_width=4)
+        
+        estado_ui = ft.Container(
+            content=ft.Column(
+                controls=[
+                    anillo_carga, 
+                    ft.Container(height=20), 
+                    estado_texto
+                ], 
+                alignment=ft.MainAxisAlignment.CENTER, 
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER
+            ),
+            alignment=ft.alignment.center, 
+            height=300
+        )
+
+        async def auto_check_payment_recovery():
+            await asyncio.sleep(2) 
+            telefono_alumno = page.session.get("user_phone") or cs_get("user_phone", "")
+            
+            if not telefono_alumno:
+                anillo_carga.visible = False
+                estado_texto.value = "No se pudo recuperar la sesión. Usa el botón manual."
+                estado_texto.color = ft.colors.RED_500
+                page.update()
+                return
+
+            intentos = 0
+            base_route = page.route.split("?")[0]
+            while intentos < 15:
+                if base_route != "/pago/verificando": 
+                    break
+                    
+                try:
+                    u = AppDB.verificar_usuario(telefono_alumno)
+                    if u and str(u.get("active_package", "")).lower().strip() == "pagado":
+                        sync_creditos_silencioso(telefono_alumno)
+                        page.session.set("monto_pendiente", "")
+                        cs_remove("monto_pendiente")
+                        page.go("/servicios")
+                        return
+                except Exception as ex:
+                    print("Error verificando pago recovery:", ex)
+                
+                intentos += 1
+                await asyncio.sleep(3)
+
+            base_route = page.route.split("?")[0]
+            if base_route == "/pago/verificando":
+                anillo_carga.visible = False
+                estado_texto.value = "El banco está tardando. Toca el botón de Bypass."
+                estado_texto.color = ft.colors.ORANGE_600
+                page.update()
+
+        page.run_task(auto_check_payment_recovery)
+
+        def verificar_estado_pago_manual_rec(e):
+            telefono_alumno = page.session.get("user_phone") or cs_get("user_phone", "")
+            if not telefono_alumno:
+                mostrar_snack("No se encontró el usuario actual.", ft.colors.RED_500)
+                return
+            try:
+                if hasattr(AppDB, "simular_webhook_banco"): 
+                    AppDB.simular_webhook_banco(telefono_alumno)
+                
+                sync_creditos_silencioso(telefono_alumno)
+                page.session.set("monto_pendiente", "")
+                cs_remove("monto_pendiente")
+                page.go("/servicios")
+            except Exception as ex:
+                print("Error en bypass de pago:", ex)
+                mostrar_snack("No fue posible comprobar el pago.", ft.colors.RED_500)
+
+        btn_accion = ft.ElevatedButton(
+            "Comprobar Manualmente (Bypass)", 
+            color=COLOR_TEXTO_BLANCO, 
+            bgcolor=COLOR_RESPIRO, 
+            width=300, 
+            height=50, 
+            on_click=verificar_estado_pago_manual_rec
+        )
+
+        return ft.View(
+            route="/pago/verificando", bgcolor=COLOR_TEXTO_BLANCO, padding=20, horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            controls=[
+                ft.Container(height=50),
+                ft.Text("Checkout Seguro", size=24, weight=ft.FontWeight.BOLD, color=COLOR_TEXTO_OSCURO),
+                ft.Container(height=40), estado_ui, ft.Container(height=40), btn_accion,
             ]
         )
 
@@ -645,8 +746,7 @@ def main(page: ft.Page):
                 else: mostrar_snack("Aún no detectamos tu pago en la base de datos.", ft.colors.ORANGE_600)
                 e.control.content = original
                 
-                page.route = "/recargando"
-                page.update()
+                page.go("/recargando")
                 page.go("/perfil") 
             except Exception: mostrar_snack("Error refrescando tus clases.", ft.colors.RED_500)
 
@@ -673,8 +773,7 @@ def main(page: ft.Page):
             except Exception:
                 mostrar_snack("No fue posible cancelar la sesión.", ft.colors.RED_500)
             
-            page.route = "/recargando"
-            page.update()
+            page.go("/recargando")
             page.go("/perfil") 
 
         dlg_cancelar.actions = [ft.TextButton("Volver", on_click=lambda _: setattr(dlg_cancelar, 'open', False) or page.update()), ft.ElevatedButton("Sí, Cancelar", bgcolor=ft.colors.RED_500, color="white", on_click=ejecutar_cancelacion_final)]
@@ -897,8 +996,9 @@ def main(page: ft.Page):
     # -------------------------------------------------------------------------
     def route_change(e):
         try:
-            # FIX SAFARI PWA: Extraer solo la ruta pura ignorando variables dinámicas de Openpay
-            base_route = page.route.split("?")[0]
+            # Aislar la ruta real, cortando cualquier cosa que Openpay haya pegado (como ?id=trx_xyz)
+            ruta_actual = page.route if page.route else "/"
+            base_route = ruta_actual.split("?")[0]
 
             page.views.clear()
             page.views.append(
@@ -945,8 +1045,8 @@ def main(page: ft.Page):
                             except Exception as ex: 
                                 print("Error recuperando usuario:", ex)
 
-            # Si regresamos de openpay en pestaña nueva, mostramos confirmación.
-            if "?id=" in page.route:
+            # Si la ruta trae un "?id=" significa que Openpay mandó al usuario de vuelta.
+            if "?id=" in ruta_actual:
                 base_route = "/completado"
 
             rutas_estaticas = {
@@ -972,8 +1072,9 @@ def main(page: ft.Page):
             page.views.clear()
             page.views.append(nueva_vista)
             page.update()
+            
         except Exception as e_route:
-            print("Error en enrutador central:", e_route)
+            print(f"Error en enrutador central: {e_route}")
             page.views.clear()
             page.views.append(build_login_view())
             page.update()
