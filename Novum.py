@@ -75,7 +75,7 @@ def main(page: ft.Page):
             return datetime.datetime.utcnow() - datetime.timedelta(hours=6)
 
     def limpiar_telefono(texto):
-        if not texto: return ""
+        if not text: return ""
         return "".join(ch for ch in str(texto) if ch.isdigit())
 
     def add_overlay_once(control):
@@ -162,7 +162,7 @@ def main(page: ft.Page):
         )
 
     # -------------------------------------------------------------------------
-    # 4. CONSTRUCTORES DE VISTAS (MODULARIZADOS)
+    # 4. CONSTRUCTORES DE VISTAS
     # -------------------------------------------------------------------------
     def build_login_view():
         return ft.View(
@@ -371,7 +371,7 @@ def main(page: ft.Page):
                     btn_bbva.bgcolor = ft.colors.GREEN_600
                     estado_ui.visible = True
                     page.update()
-                    page.launch_url(link)
+                    page.launch_url(link, web_window_name="_self")
                     page.run_task(auto_check_payment)
                 else:
                     restaurar_btn_bbva()
@@ -570,10 +570,14 @@ def main(page: ft.Page):
         def confirmar_reserva(clase):
             try:
                 usuario_actual = AppDB.verificar_usuario(telefono_alumno)
-                if int(usuario_actual.get("credits", 0) if usuario_actual else 0) <= 0:
+                creditos_actuales = int(usuario_actual.get("credits", 0) if usuario_actual else 0)
+                if creditos_actuales <= 0:
                     page.go("/paquetes")
                     return
                 if AppDB.reservar_clase(telefono_alumno, clase["id"]):
+                    # CORRECCIÓN DE BUG: Descontar el crédito en la BD tras confirmar reservación exitosa
+                    AppDB.asignar_creditos(telefono_alumno, max(0, creditos_actuales - 1))
+                    
                     mostrar_snack("¡Reserva confirmada! Se descontó 1 clase.", ft.colors.GREEN_600)
                     recargar_pantalla()
                 else:
@@ -872,11 +876,35 @@ def main(page: ft.Page):
         return ft.View(route="/recargando", bgcolor=COLOR_BG_CLARO, controls=[ft.Container(expand=True, alignment=ft.alignment.center, content=ft.ProgressRing(color=COLOR_RESPIRO))])
 
     # -------------------------------------------------------------------------
-    # 5. ENRUTADOR CENTRAL
+    # 5. ENRUTADOR CENTRAL CON INTERCEPTOR DE PANTALLA DE CARGA
     # -------------------------------------------------------------------------
     def route_change(e):
+        # Muestra la interfaz de espera inmediatamente (evita pantallazos blancos al cambiar cualquier ruta)
         page.views.clear()
+        page.views.append(
+            ft.View(
+                bgcolor=COLOR_BG_CLARO,
+                padding=0,
+                controls=[
+                    ft.Container(
+                        expand=True,
+                        alignment=ft.alignment.center,
+                        content=ft.Column(
+                            controls=[
+                                ft.ProgressRing(width=45, height=45, color=COLOR_RESPIRO, stroke_width=4),
+                                ft.Container(height=15),
+                                ft.Text("Preparando tu espacio...", color=COLOR_RESPIRO_DARK, size=15, weight=ft.FontWeight.W_500)
+                            ],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER
+                        )
+                    )
+                ]
+            )
+        )
+        page.update()
 
+        # Evaluación de sesiones guardadas locales de forma interna
         if not page.session.get("user_phone"):
             tel_guardado = cs_get("user_phone", "")
             if tel_guardado:
@@ -886,16 +914,18 @@ def main(page: ft.Page):
                 
                 if page.route in ["/login", "/"]:
                     if cs_get("monto_pendiente", ""):
-                        page.go("/pago/verificando")
-                        return
-                    try:
-                        usuario_rec = AppDB.verificar_usuario(tel_guardado)
-                        if usuario_rec and str(usuario_rec.get("active_package", "")).lower().strip() == "pagado" and int(usuario_rec.get("credits", 0) or 0) > 0:
-                            page.go("/servicios")
-                        else: page.go("/paquetes")
-                        return
-                    except Exception as ex: print("Error recuperando usuario:", ex)
+                        page.route = "/pago/verificando"
+                    else:
+                        try:
+                            usuario_rec = AppDB.verificar_usuario(tel_guardado)
+                            if usuario_rec and str(usuario_rec.get("active_package", "")).lower().strip() == "pagado" and int(usuario_rec.get("credits", 0) or 0) > 0:
+                                page.route = "/servicios"
+                            else: 
+                                page.route = "/paquetes"
+                        except Exception as ex: 
+                            print("Error recuperando usuario:", ex)
 
+        # Mapeo de vistas estáticas
         rutas_estaticas = {
             "/login": build_login_view,
             "/formulario_ingreso": build_formulario_view,
@@ -907,14 +937,18 @@ def main(page: ft.Page):
             "/recargando": build_recargando_view
         }
 
+        # Determinación de vista final a construir
         if page.route in rutas_estaticas:
-            page.views.append(rutas_estaticas[page.route]())
+            nueva_vista = rutas_estaticas[page.route]()
         elif page.route.startswith("/pago/") and page.route != "/pago/verificando":
             monto = page.route.split("/")[2]
-            page.views.append(build_pago_view(monto))
+            nueva_vista = build_pago_view(monto)
         else:
-            page.views.append(build_login_view())
+            nueva_vista = build_login_view()
 
+        # Inserción de la vista construida sobrepasando el cargador de forma limpia
+        page.views.clear()
+        page.views.append(nueva_vista)
         page.update()
 
     def view_pop(e):
@@ -928,6 +962,13 @@ def main(page: ft.Page):
     page.on_view_pop = view_pop
     page.go("/login")
 
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
-    ft.app(target=main, view=ft.AppView.WEB_BROWSER, port=port, host="0.0.0.0", assets_dir="assets")
+    ft.app(
+        target=main,
+        view=ft.AppView.WEB_BROWSER,
+        port=port,
+        host="0.0.0.0",
+        assets_dir="assets",
+    )
